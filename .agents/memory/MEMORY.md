@@ -1,0 +1,5 @@
+- [wouter layout nesting](wouter-layout-nesting.md) — wrap layout routes in a pathless catch-all `<Route>`, never `<Route path="/:rest*">`, or nested absolute routes go blank.
+- [generated query-param booleans](generated-query-booleans.md) — Orval/Zod `coerce.boolean()` treats "false" as true; parse query booleans manually in route handlers.
+- [time-tracking integrity rules](time-tracking-integrity.md) — invariants the API must enforce on time entries and clock-in.
+- [drizzle push & check constraints](drizzle-push-check-constraints.md) — `drizzle-kit push` silently ignores changed CHECK constraints; verify with pg_constraint and ALTER manually.
+- [multipart OpenAPI codegen](multipart-openapi-codegen.md) — $ref a named form schema and add DOM lib to the zod package tsconfig, or codegen/typecheck breaks.

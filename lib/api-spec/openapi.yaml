@@ -1,0 +1,3013 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Steel Fabrication MRP API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: jobs
+    description: Job and production tracking operations
+  - name: estimates
+    description: Pre-production estimates (bids) and conversion to jobs
+  - name: stages
+    description: Job stage and routing operations
+  - name: stage-library
+    description: Configurable library of available production stages
+  - name: employees
+    description: Employee records for time tracking
+  - name: time
+    description: Clock in/out and time entry operations
+  - name: dashboard
+    description: Aggregated production dashboard views
+  - name: documents
+    description: Job document attachments
+  - name: bom
+    description: KISS bill-of-materials import and views
+  - name: customers
+    description: CRM customer, contact, and address operations
+  - name: purchase-orders
+    description: Materials purchase orders and PM review
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /estimates:
+    get:
+      operationId: listEstimates
+      tags: [estimates]
+      summary: List estimates
+      description: List all estimates, optionally filtered by status or search term.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, submitted, won, lost]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A list of estimates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Estimate"
+    post:
+      operationId: createEstimate
+      tags: [estimates]
+      summary: Create an estimate
+      description: Create an estimate. The bid number is auto-assigned by the server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estimate"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}:
+    get:
+      operationId: getEstimate
+      tags: [estimates]
+      summary: Get an estimate
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      responses:
+        "200":
+          description: Estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estimate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: updateEstimate
+      tags: [estimates]
+      summary: Update an estimate
+      description: Update estimate fields or status (e.g. mark Lost). Won status is set via the convert endpoint.
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estimate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteEstimate
+      tags: [estimates]
+      summary: Delete an estimate
+      description: Delete an estimate. Converted (won) estimates cannot be deleted.
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Cannot delete a converted estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}/convert:
+    post:
+      operationId: convertEstimateToJob
+      tags: [estimates]
+      summary: Mark estimate Won and convert it to a job
+      description: >-
+        Marks the estimate Won and creates a job linked to it with an
+        auto-assigned job number and the given (or default) stage routing.
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateConvertInput"
+      responses:
+        "201":
+          description: Created job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Estimate already converted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List jobs
+      description: List all jobs, optionally filtered by status.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, on_hold, complete, closed]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A list of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create a job
+      description: Create a job with an optional custom stage routing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a job with full detail
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: updateJob
+      tags: [jobs]
+      summary: Update a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteJob
+      tags: [jobs]
+      summary: Delete a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/advance:
+    post:
+      operationId: advanceJobStage
+      tags: [jobs]
+      summary: Advance job to the next stage
+      description: Marks the current in-progress stage complete and starts the next stage.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Updated job detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/stages:
+    post:
+      operationId: addJobStage
+      tags: [stages]
+      summary: Add a stage to a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StageInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/stages/reorder:
+    post:
+      operationId: reorderJobStages
+      tags: [stages]
+      summary: Reorder a job's stages
+      description: >
+        Accepts the full ordered list of the job's stage IDs. Only
+        not-started stages may change position; completed and in-progress
+        stages must remain at their current positions.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderStagesBody"
+      responses:
+        "200":
+          description: Updated job detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "400":
+          description: Invalid stage order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Reorder would move a locked (completed or in-progress) stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/documents:
+    get:
+      operationId: listJobDocuments
+      tags: [documents]
+      summary: List documents attached to a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: uploadJobDocument
+      tags: [documents]
+      summary: Upload a document to a job
+      description: >
+        Multipart upload. Fields: `file` (binary) and `category`
+        (drawing, mtr, photo, nc_data, spreadsheet, other).
+        Allowed file types: PDF, DWG, DXF, NC-1/DSTV (.nc1, .nc), JPG, PNG, XLSX, CSV.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/DocumentUploadForm"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          description: Invalid input (disallowed file type or too large)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}/documents:
+    get:
+      operationId: listEstimateDocuments
+      tags: [documents]
+      summary: List documents attached to an estimate
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: uploadEstimateDocument
+      tags: [documents]
+      summary: Upload a document to an estimate
+      description: >
+        Multipart upload. Fields: `file` (binary) and `category`
+        (drawing, mtr, photo, nc_data, spreadsheet, other).
+        Allowed file types: PDF, DWG, DXF, NC-1/DSTV (.nc1, .nc), JPG, PNG, XLSX, CSV.
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/DocumentUploadForm"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          description: Invalid input (disallowed file type or too large)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /documents/{documentId}:
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document
+      description: Removes the document record and its stored file.
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /documents/{documentId}/download:
+    get:
+      operationId: downloadDocument
+      tags: [documents]
+      summary: Download a document file
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: File contents
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bom/assemblies/{assemblyId}:
+    patch:
+      operationId: updateBomAssembly
+      tags: [bom]
+      summary: Update tracking fields of a BOM assembly
+      description: >-
+        Edits an assembly's description, quantity, processing path, current
+        stage, hold flag, and notes. The mark (BOM identity key) cannot change.
+      parameters:
+        - $ref: "#/components/parameters/AssemblyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BomAssemblyUpdate"
+      responses:
+        "200":
+          description: Updated assembly
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BomAssembly"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bom/parts/{partId}:
+    patch:
+      operationId: updateBomPart
+      tags: [bom]
+      summary: Update a BOM part row
+      description: >-
+        Edits a part's piece marks, quantity, profile fields, and heat number
+        for heat traceability.
+      parameters:
+        - $ref: "#/components/parameters/PartId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BomPartUpdate"
+      responses:
+        "200":
+          description: Updated part
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BomPart"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bom/parts/{partId}/documents:
+    get:
+      operationId: listPartDocuments
+      tags: [documents]
+      summary: List documents attached to a BOM part
+      parameters:
+        - $ref: "#/components/parameters/PartId"
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: uploadPartDocument
+      tags: [documents]
+      summary: Upload a PDF to a BOM part
+      description: >
+        Multipart upload of a mill test report or similar certificate for a
+        specific part line. Field: `file` (binary). PDF files only.
+        The document is stored with category `mtr`.
+      parameters:
+        - $ref: "#/components/parameters/PartId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/PartDocumentUploadForm"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          description: Invalid input (not a PDF or too large)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bom/parse:
+    post:
+      operationId: parseBomFile
+      tags: [bom]
+      summary: Parse a KISS file for preview
+      description: >
+        Parses a KISS (.kss) bill-of-materials file and returns the parsed
+        assemblies, parts, and material totals without saving anything.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/BomUploadForm"
+      responses:
+        "200":
+          description: Parsed BOM preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BomView"
+        "400":
+          description: Invalid or malformed KISS file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/bom:
+    get:
+      operationId: getJobBom
+      tags: [bom]
+      summary: Get a job's bill of materials
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: The job's BOM (empty assemblies list when no BOM imported)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BomView"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: uploadJobBom
+      tags: [bom]
+      summary: Import a KISS file as the job's bill of materials
+      description: >
+        Parses the uploaded KISS (.kss) file and replaces the job's stored
+        BOM. The original file is also attached to the job's documents.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/BomUploadForm"
+      responses:
+        "201":
+          description: Imported BOM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BomView"
+        "400":
+          description: Invalid or malformed KISS file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /stages/{stageId}:
+    patch:
+      operationId: updateStage
+      tags: [stages]
+      summary: Update a job stage
+      description: Update stage name, status, estimated hours, or order index.
+      parameters:
+        - $ref: "#/components/parameters/StageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StageUpdate"
+      responses:
+        "200":
+          description: Updated job detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteStage
+      tags: [stages]
+      summary: Delete a job stage
+      parameters:
+        - $ref: "#/components/parameters/StageId"
+      responses:
+        "200":
+          description: Updated job detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /stage-library:
+    get:
+      operationId: listStageLibrary
+      tags: [stage-library]
+      summary: List available stage templates
+      responses:
+        "200":
+          description: Stage library items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StageLibraryItem"
+    post:
+      operationId: createStageLibraryItem
+      tags: [stage-library]
+      summary: Add a stage template to the library
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StageLibraryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StageLibraryItem"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /stage-library/{itemId}:
+    delete:
+      operationId: deleteStageLibraryItem
+      tags: [stage-library]
+      summary: Remove a stage template from the library
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /processing-path-options:
+    get:
+      operationId: listProcessingPathOptions
+      tags: [bom]
+      summary: List processing path options
+      description: >-
+        Persistent shared list of processing path options, including any
+        distinct values already used on assemblies.
+      responses:
+        "200":
+          description: Processing path options
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProcessingPathOption"
+    post:
+      operationId: createProcessingPathOption
+      tags: [bom]
+      summary: Add a processing path option
+      description: >-
+        Adds a new option (trimmed). If an option with the same name already
+        exists (case-insensitive), the existing option is returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessingPathOptionInput"
+      responses:
+        "201":
+          description: Created (or existing option returned)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessingPathOption"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List employees
+      parameters:
+        - name: activeOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create an employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /employees/{employeeId}:
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update an employee
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete an employee
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /time-entries:
+    get:
+      operationId: listTimeEntries
+      tags: [time]
+      summary: List time entries
+      description: List time entries, optionally filtered by job, employee, or active (open) status.
+      parameters:
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: activeOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Time entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeEntry"
+    post:
+      operationId: createTimeEntry
+      tags: [time]
+      summary: Create a manual time entry
+      description: Supervisor manual time entry for missed punches. Both clockIn and clockOut are provided.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimeEntryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /time-entries/{entryId}:
+    patch:
+      operationId: updateTimeEntry
+      tags: [time]
+      summary: Correct a time entry
+      description: Supervisor correction of an existing time entry.
+      parameters:
+        - $ref: "#/components/parameters/EntryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimeEntryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteTimeEntry
+      tags: [time]
+      summary: Delete a time entry
+      parameters:
+        - $ref: "#/components/parameters/EntryId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /time-clock/in:
+    post:
+      operationId: clockIn
+      tags: [time]
+      summary: Clock in
+      description: Shop floor clock in for an employee against a job and stage.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClockInInput"
+      responses:
+        "201":
+          description: Clocked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /time-clock/out:
+    post:
+      operationId: clockOut
+      tags: [time]
+      summary: Clock out
+      description: Shop floor clock out for an open time entry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClockOutInput"
+      responses:
+        "200":
+          description: Clocked out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /time-clock/active:
+    get:
+      operationId: listActivePunches
+      tags: [time]
+      summary: List who is currently clocked in
+      responses:
+        "200":
+          description: Active punches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeEntry"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Aggregated production KPIs
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/jobs:
+    get:
+      operationId: getDashboardJobs
+      tags: [dashboard]
+      summary: Active jobs with production progress
+      description: Jobs with current stage, hours burned vs estimated, due status, and clocked-in count.
+      responses:
+        "200":
+          description: Dashboard jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DashboardJob"
+
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List customers
+      description: List customers, optionally filtered by search term or status.
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        "200":
+          description: Customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /customers/{customerId}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get customer detail
+      description: Customer info plus contacts, addresses, and job history.
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: Customer detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update a customer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete a customer
+      description: Fails with 409 if the customer has linked jobs.
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Customer has linked jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /customers/{customerId}/contacts:
+    post:
+      operationId: createContact
+      tags: [customers]
+      summary: Add a contact to a customer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /contacts/{contactId}:
+    patch:
+      operationId: updateContact
+      tags: [customers]
+      summary: Update a contact
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteContact
+      tags: [customers]
+      summary: Delete a contact
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /customers/{customerId}/addresses:
+    post:
+      operationId: createCustomerAddress
+      tags: [customers]
+      summary: Add a delivery address to a customer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerAddressInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerAddress"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /customer-addresses/{addressId}:
+    patch:
+      operationId: updateCustomerAddress
+      tags: [customers]
+      summary: Update a delivery address
+      parameters:
+        - $ref: "#/components/parameters/AddressId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerAddressUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerAddress"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteCustomerAddress
+      tags: [customers]
+      summary: Delete a delivery address
+      parameters:
+        - $ref: "#/components/parameters/AddressId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /purchase-orders:
+    get:
+      operationId: listPurchaseOrders
+      tags: [purchase-orders]
+      summary: List purchase orders
+      description: List all purchase orders, optionally filtered by status or search term.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, sent, approved, rejected]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Purchase orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PurchaseOrder"
+
+  /jobs/{jobId}/purchase-orders:
+    get:
+      operationId: listJobPurchaseOrders
+      tags: [purchase-orders]
+      summary: List a job's purchase orders
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Purchase orders for the job
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PurchaseOrder"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createPurchaseOrder
+      tags: [purchase-orders]
+      summary: Create a purchase order for a job
+      description: >
+        Creates a draft purchase order with the given material lines. The PO
+        number is auto-assigned by the server.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseOrderInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderDetail"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /purchase-orders/{poId}:
+    get:
+      operationId: getPurchaseOrder
+      tags: [purchase-orders]
+      summary: Get a purchase order with its lines
+      parameters:
+        - $ref: "#/components/parameters/PoId"
+      responses:
+        "200":
+          description: Purchase order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: updatePurchaseOrder
+      tags: [purchase-orders]
+      summary: Replace a purchase order's lines
+      description: >
+        Replaces the full list of material lines. Only draft or rejected
+        purchase orders can be edited.
+      parameters:
+        - $ref: "#/components/parameters/PoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseOrderInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Purchase order is not editable in its current status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deletePurchaseOrder
+      tags: [purchase-orders]
+      summary: Delete a purchase order
+      description: Approved purchase orders cannot be deleted.
+      parameters:
+        - $ref: "#/components/parameters/PoId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Cannot delete an approved purchase order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /purchase-orders/{poId}/status:
+    post:
+      operationId: updatePurchaseOrderStatus
+      tags: [purchase-orders]
+      summary: Change a purchase order's status
+      description: >
+        Lifecycle transitions: draft/rejected can be sent; sent can be
+        approved or rejected (with an optional review comment). Any other
+        transition returns 409.
+      parameters:
+        - $ref: "#/components/parameters/PoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseOrderStatusInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrderDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  parameters:
+    PoId:
+      name: poId
+      in: path
+      required: true
+      schema:
+        type: integer
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: integer
+    AssemblyId:
+      name: assemblyId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PartId:
+      name: partId
+      in: path
+      required: true
+      schema:
+        type: integer
+    StageId:
+      name: stageId
+      in: path
+      required: true
+      schema:
+        type: integer
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+    EmployeeId:
+      name: employeeId
+      in: path
+      required: true
+      schema:
+        type: integer
+    EntryId:
+      name: entryId
+      in: path
+      required: true
+      schema:
+        type: integer
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: integer
+    EstimateId:
+      name: estimateId
+      in: path
+      required: true
+      schema:
+        type: integer
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      schema:
+        type: integer
+    ContactId:
+      name: contactId
+      in: path
+      required: true
+      schema:
+        type: integer
+    AddressId:
+      name: addressId
+      in: path
+      required: true
+      schema:
+        type: integer
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    Job:
+      type: object
+      required:
+        - id
+        - jobNumber
+        - name
+        - customer
+        - status
+        - createdAt
+        - updatedAt
+        - currentStageName
+        - estimatedHours
+        - actualHours
+        - percentComplete
+        - isPastDue
+      properties:
+        id:
+          type: integer
+        jobNumber:
+          type: string
+        name:
+          type: string
+        customer:
+          type: string
+        customerId:
+          type: ["integer", "null"]
+        customerPo:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, on_hold, complete, closed]
+        dueDate:
+          type: ["string", "null"]
+          description: Calendar date (YYYY-MM-DD)
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        currentStageName:
+          type: ["string", "null"]
+        estimatedHours:
+          type: number
+        actualHours:
+          type: number
+        percentComplete:
+          type: number
+        isPastDue:
+          type: boolean
+        estimateId:
+          type: ["integer", "null"]
+        bidNumber:
+          type: ["string", "null"]
+
+    JobDetail:
+      type: object
+      required:
+        - id
+        - jobNumber
+        - name
+        - customer
+        - status
+        - createdAt
+        - updatedAt
+        - stages
+        - estimatedHours
+        - actualHours
+        - percentComplete
+        - isPastDue
+        - assignedEmployees
+      properties:
+        id:
+          type: integer
+        jobNumber:
+          type: string
+        name:
+          type: string
+        customer:
+          type: string
+        customerId:
+          type: ["integer", "null"]
+        customerPo:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, on_hold, complete, closed]
+        dueDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        currentStageName:
+          type: ["string", "null"]
+        estimatedHours:
+          type: number
+        actualHours:
+          type: number
+        percentComplete:
+          type: number
+        isPastDue:
+          type: boolean
+        estimateId:
+          type: ["integer", "null"]
+        bidNumber:
+          type: ["string", "null"]
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stage"
+        assignedEmployees:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssignedEmployee"
+        bomAssemblies:
+          type: array
+          items:
+            $ref: "#/components/schemas/BomAssembly"
+        assemblyCount:
+          type: integer
+        assemblyProgressPct:
+          type: [number, "null"]
+        assemblyStatus:
+          type: [string, "null"]
+
+    JobStageInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        estimatedHours:
+          type: number
+
+    Estimate:
+      type: object
+      required:
+        - id
+        - bidNumber
+        - name
+        - customer
+        - status
+        - estimatedHours
+        - jobId
+        - jobNumber
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        bidNumber:
+          type: string
+        name:
+          type: string
+        customer:
+          type: string
+        status:
+          type: string
+          enum: [draft, submitted, won, lost]
+        estimatedHours:
+          type: number
+        amount:
+          type: ["number", "null"]
+        bidDate:
+          type: ["string", "null"]
+          description: Calendar date (YYYY-MM-DD)
+        dueDate:
+          type: ["string", "null"]
+          description: Calendar date (YYYY-MM-DD)
+        notes:
+          type: ["string", "null"]
+        jobId:
+          type: ["integer", "null"]
+          description: Linked job id when the estimate was converted
+        jobNumber:
+          type: ["string", "null"]
+          description: Linked job number when the estimate was converted
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    EstimateInput:
+      type: object
+      required: [name, customer]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        customer:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum: [draft, submitted, lost]
+        estimatedHours:
+          type: number
+        amount:
+          type: ["number", "null"]
+        bidDate:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    EstimateUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        customer:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum: [draft, submitted, lost]
+        estimatedHours:
+          type: number
+        amount:
+          type: ["number", "null"]
+        bidDate:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    EstimateConvertInput:
+      type: object
+      properties:
+        dueDate:
+          type: ["string", "null"]
+        stages:
+          type: array
+          description: Custom routing. If omitted, the default workflow is applied.
+          items:
+            $ref: "#/components/schemas/JobStageInput"
+
+    JobInput:
+      type: object
+      required: [name, customerId]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        customerId:
+          type: integer
+        status:
+          type: string
+          enum: [active, on_hold, complete, closed]
+        dueDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        assignedEmployeeIds:
+          type: array
+          description: Employee ids to assign to the job.
+          items:
+            type: integer
+        stages:
+          type: array
+          description: Custom routing. If omitted, the default workflow is applied.
+          items:
+            $ref: "#/components/schemas/JobStageInput"
+
+    JobUpdate:
+      type: object
+      properties:
+        jobNumber:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        customerId:
+          type: integer
+        customerPo:
+          type: ["string", "null"]
+          description: Customer purchase order number. Null clears it.
+        status:
+          type: string
+          enum: [active, on_hold, complete, closed]
+        dueDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        assignedEmployeeIds:
+          type: array
+          description: Full replacement list of assigned employee ids.
+          items:
+            type: integer
+
+    AssignedEmployee:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Stage:
+      type: object
+      required:
+        - id
+        - jobId
+        - name
+        - orderIndex
+        - status
+        - estimatedHours
+        - actualHours
+        - createdAt
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        name:
+          type: string
+        orderIndex:
+          type: integer
+        status:
+          type: string
+          enum: [not_started, in_progress, complete]
+        estimatedHours:
+          type: number
+        actualHours:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    StageInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        estimatedHours:
+          type: number
+        orderIndex:
+          type: integer
+
+    StageUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum: [not_started, in_progress, complete]
+        estimatedHours:
+          type: number
+        orderIndex:
+          type: integer
+
+    ReorderStagesBody:
+      type: object
+      required: [stageIds]
+      properties:
+        stageIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+
+    StageLibraryItem:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    StageLibraryInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+
+    ProcessingPathOption:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ProcessingPathOptionInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+
+    Employee:
+      type: object
+      required: [id, name, active, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        employeeCode:
+          type: ["string", "null"]
+        jobTitle:
+          type: ["string", "null"]
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    EmployeeInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        employeeCode:
+          type: ["string", "null"]
+        jobTitle:
+          type: ["string", "null"]
+        active:
+          type: boolean
+
+    EmployeeUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        employeeCode:
+          type: ["string", "null"]
+        jobTitle:
+          type: ["string", "null"]
+        active:
+          type: boolean
+
+    TimeEntry:
+      type: object
+      required:
+        - id
+        - employeeId
+        - employeeName
+        - jobId
+        - jobNumber
+        - jobName
+        - stageId
+        - stageName
+        - clockIn
+        - createdAt
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        employeeTitle:
+          type: ["string", "null"]
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        stageId:
+          type: integer
+        stageName:
+          type: string
+        clockIn:
+          type: string
+          format: date-time
+        clockOut:
+          type: ["string", "null"]
+          format: date-time
+        durationMinutes:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    ClockInInput:
+      type: object
+      required: [employeeId, jobId, stageId]
+      properties:
+        employeeId:
+          type: integer
+        jobId:
+          type: integer
+        stageId:
+          type: integer
+
+    ClockOutInput:
+      type: object
+      required: [entryId]
+      properties:
+        entryId:
+          type: integer
+
+    TimeEntryInput:
+      type: object
+      required: [employeeId, jobId, stageId, clockIn, clockOut]
+      properties:
+        employeeId:
+          type: integer
+        jobId:
+          type: integer
+        stageId:
+          type: integer
+        clockIn:
+          type: string
+          format: date-time
+        clockOut:
+          type: string
+          format: date-time
+
+    TimeEntryUpdate:
+      type: object
+      properties:
+        stageId:
+          type: integer
+        clockIn:
+          type: string
+          format: date-time
+        clockOut:
+          type: ["string", "null"]
+          format: date-time
+
+    DocumentCategory:
+      type: string
+      enum: [drawing, mtr, photo, nc_data, spreadsheet, other]
+
+    DocumentUploadForm:
+      type: object
+      required: [file, category]
+      properties:
+        file:
+          type: string
+          format: binary
+        category:
+          $ref: "#/components/schemas/DocumentCategory"
+
+    PartDocumentUploadForm:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+
+    Document:
+      type: object
+      required:
+        - id
+        - jobId
+        - estimateId
+        - partId
+        - filename
+        - category
+        - mimeType
+        - sizeBytes
+        - uploadedAt
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: ["integer", "null"]
+        estimateId:
+          type: ["integer", "null"]
+        partId:
+          type: ["integer", "null"]
+        filename:
+          type: string
+        category:
+          $ref: "#/components/schemas/DocumentCategory"
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        uploadedAt:
+          type: string
+          format: date-time
+
+    BomUploadForm:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+
+    BomPart:
+      type: object
+      required: [quantity]
+      properties:
+        id:
+          type: integer
+        partMark:
+          type: [string, "null"]
+        quantity:
+          type: integer
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        lengthIn:
+          type: [number, "null"]
+        description:
+          type: [string, "null"]
+        heatNumber:
+          type: [string, "null"]
+
+    BomAssembly:
+      type: object
+      required: [mark, quantity, parts, onHold]
+      properties:
+        id:
+          type: integer
+        mark:
+          type: string
+        quantity:
+          type: integer
+        description:
+          type: [string, "null"]
+        finish:
+          type: [string, "null"]
+        processingPath:
+          type: [string, "null"]
+        currentStage:
+          type: [string, "null"]
+        onHold:
+          type: boolean
+        notes:
+          type: [string, "null"]
+        inspectedOn:
+          type: [string, "null"]
+        station:
+          type: [string, "null"]
+        inspector:
+          type: [string, "null"]
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/BomPart"
+
+    BomAssemblyUpdate:
+      type: object
+      properties:
+        description:
+          type: [string, "null"]
+        quantity:
+          type: integer
+          minimum: 1
+        processingPath:
+          type: [string, "null"]
+        currentStage:
+          type: [string, "null"]
+        onHold:
+          type: boolean
+        notes:
+          type: [string, "null"]
+
+    BomPartUpdate:
+      type: object
+      properties:
+        partMark:
+          type: [string, "null"]
+        quantity:
+          type: integer
+          minimum: 1
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        lengthIn:
+          type: [number, "null"]
+        description:
+          type: [string, "null"]
+        heatNumber:
+          type: [string, "null"]
+
+    BomMaterialTotal:
+      type: object
+      required: [pieces]
+      properties:
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        pieces:
+          type: integer
+        totalLengthIn:
+          type: [number, "null"]
+
+    BomView:
+      type: object
+      required: [assemblies, totals, assemblyCount, partCount, totalPieces]
+      properties:
+        jobRef:
+          type: [string, "null"]
+        jobName:
+          type: [string, "null"]
+        assemblyCount:
+          type: integer
+        partCount:
+          type: integer
+        totalPieces:
+          type: integer
+        assemblies:
+          type: array
+          items:
+            $ref: "#/components/schemas/BomAssembly"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/BomMaterialTotal"
+
+    DashboardSummary:
+      type: object
+      required:
+        - activeJobs
+        - onHoldJobs
+        - completeJobs
+        - closedJobs
+        - pastDueJobs
+        - clockedInCount
+        - totalEstimatedHours
+        - totalActualHours
+      properties:
+        activeJobs:
+          type: integer
+        onHoldJobs:
+          type: integer
+        completeJobs:
+          type: integer
+        closedJobs:
+          type: integer
+        pastDueJobs:
+          type: integer
+        clockedInCount:
+          type: integer
+        totalEstimatedHours:
+          type: number
+        totalActualHours:
+          type: number
+
+    DashboardJob:
+      type: object
+      required:
+        - id
+        - jobNumber
+        - name
+        - customer
+        - status
+        - currentStageName
+        - currentStageStatus
+        - estimatedHours
+        - actualHours
+        - hoursRemaining
+        - percentComplete
+        - isPastDue
+        - clockedInCount
+        - assignedEmployees
+      properties:
+        id:
+          type: integer
+        jobNumber:
+          type: string
+        name:
+          type: string
+        customer:
+          type: string
+        customerId:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [active, on_hold, complete, closed]
+        dueDate:
+          type: ["string", "null"]
+        currentStageName:
+          type: ["string", "null"]
+        currentStageStatus:
+          type: ["string", "null"]
+        estimatedHours:
+          type: number
+        actualHours:
+          type: number
+        hoursRemaining:
+          type: number
+        percentComplete:
+          type: number
+        isPastDue:
+          type: boolean
+        clockedInCount:
+          type: integer
+        assignedEmployees:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssignedEmployee"
+        assemblyCount:
+          type: integer
+        assemblyProgressPct:
+          type: [number, "null"]
+        assemblyStatus:
+          type: [string, "null"]
+        assemblyTotalQty:
+          type: integer
+          description: Sum of assembly quantities on the job
+        assemblyStageCounts:
+          $ref: "#/components/schemas/AssemblyStageCounts"
+        assemblyGridStatus:
+          type: string
+          description: Derived rollup status (Not Started / In Progress / Ready to Ship / Complete) based on canonical assembly pipeline order
+        assemblyGridProgressPct:
+          type: number
+          description: Quantity-weighted percent done across the canonical assembly pipeline (Parts Processing first, then vendor stages, then cut/fit/weld/inspect/ship)
+
+    AssemblyStageCounts:
+      type: object
+      description: Quantity-weighted counts of assemblies at each production stage. Held assemblies count only under onHold.
+      required:
+        [
+          sentToVendor,
+          atVendor,
+          readyForPickup,
+          partsProcessing,
+          cut,
+          fit,
+          welded,
+          inspected,
+          shipped,
+          onHold,
+          notStarted,
+        ]
+      properties:
+        sentToVendor:
+          type: integer
+        atVendor:
+          type: integer
+        readyForPickup:
+          type: integer
+        partsProcessing:
+          type: integer
+        cut:
+          type: integer
+        fit:
+          type: integer
+        welded:
+          type: integer
+        inspected:
+          type: integer
+        shipped:
+          type: integer
+        onHold:
+          type: integer
+        notStarted:
+          type: integer
+
+    Customer:
+      type: object
+      required: [id, name, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: ["string", "null"]
+        fax:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        billingAddress:
+          type: ["string", "null"]
+        defaultDeliveryAddress:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CustomerInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        phone:
+          type: ["string", "null"]
+        fax:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        billingAddress:
+          type: ["string", "null"]
+        defaultDeliveryAddress:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive]
+        notes:
+          type: ["string", "null"]
+
+    CustomerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        phone:
+          type: ["string", "null"]
+        fax:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        billingAddress:
+          type: ["string", "null"]
+        defaultDeliveryAddress:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive]
+        notes:
+          type: ["string", "null"]
+
+    Contact:
+      type: object
+      required: [id, customerId, name, isPrimary, createdAt]
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        name:
+          type: string
+        title:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        mobile:
+          type: ["string", "null"]
+        fax:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        isPrimary:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ContactInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        title:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        mobile:
+          type: ["string", "null"]
+        fax:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        isPrimary:
+          type: boolean
+
+    ContactUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        title:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        mobile:
+          type: ["string", "null"]
+        fax:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        isPrimary:
+          type: boolean
+
+    CustomerAddress:
+      type: object
+      required: [id, customerId, label, address, createdAt]
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        label:
+          type: string
+        address:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CustomerAddressInput:
+      type: object
+      required: [label, address]
+      properties:
+        label:
+          type: string
+          minLength: 1
+        address:
+          type: string
+          minLength: 1
+
+    CustomerAddressUpdate:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+        address:
+          type: string
+          minLength: 1
+
+    CustomerDetail:
+      type: object
+      required: [customer, contacts, addresses, jobs]
+      properties:
+        customer:
+          $ref: "#/components/schemas/Customer"
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Contact"
+        addresses:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerAddress"
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+
+    PurchaseOrderStatus:
+      type: string
+      enum: [draft, sent, approved, rejected]
+
+    PurchaseOrderLine:
+      type: object
+      required: [id, pieces]
+      properties:
+        id:
+          type: integer
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        pieces:
+          type: integer
+        lengthIn:
+          type: ["number", "null"]
+          description: Total length in inches for this line
+
+    PurchaseOrderLineInput:
+      type: object
+      required: [pieces]
+      properties:
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        pieces:
+          type: integer
+          minimum: 1
+        lengthIn:
+          type: ["number", "null"]
+          description: Total length in inches for this line
+
+    PurchaseOrder:
+      type: object
+      required:
+        - id
+        - poNumber
+        - jobId
+        - jobNumber
+        - jobName
+        - customer
+        - status
+        - lineCount
+        - totalPieces
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        poNumber:
+          type: string
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        customer:
+          type: string
+        status:
+          $ref: "#/components/schemas/PurchaseOrderStatus"
+        reviewComment:
+          type: ["string", "null"]
+        lineCount:
+          type: integer
+        totalPieces:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PurchaseOrderDetail:
+      type: object
+      required:
+        - id
+        - poNumber
+        - jobId
+        - jobNumber
+        - jobName
+        - customer
+        - status
+        - lineCount
+        - totalPieces
+        - lines
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        poNumber:
+          type: string
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        customer:
+          type: string
+        status:
+          $ref: "#/components/schemas/PurchaseOrderStatus"
+        reviewComment:
+          type: ["string", "null"]
+        lineCount:
+          type: integer
+        totalPieces:
+          type: integer
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PurchaseOrderLine"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PurchaseOrderInput:
+      type: object
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PurchaseOrderLineInput"
+
+    PurchaseOrderStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [sent, approved, rejected]
+        comment:
+          type: ["string", "null"]
+          description: Optional PM review comment (used on approve/reject)
