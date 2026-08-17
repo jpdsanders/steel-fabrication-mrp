@@ -20,10 +20,10 @@ import {
 } from "../services/production";
 import { parseIntParam } from "../lib/params";
 import { deleteJobDocumentObjects } from "./documents";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-/** True when err (possibly wrapped by drizzle) is a Postgres unique violation. */
 function isUniqueViolation(err: unknown): boolean {
   for (let e = err; e instanceof Error; e = e.cause as Error) {
     if ((e as { code?: string }).code === "23505") return true;
@@ -32,20 +32,28 @@ function isUniqueViolation(err: unknown): boolean {
   return false;
 }
 
-/** Returns true when all given employee ids exist. */
-async function allEmployeesExist(employeeIds: number[]): Promise<boolean> {
+async function allEmployeesExist(
+  employeeIds: number[],
+  companyId: number,
+): Promise<boolean> {
   const ids = [...new Set(employeeIds)];
   if (ids.length === 0) return true;
   const rows = await db
     .select({ id: employeesTable.id })
     .from(employeesTable)
-    .where(inArray(employeesTable.id, ids));
+    .where(
+      and(
+        inArray(employeesTable.id, ids),
+        eq(employeesTable.companyId, companyId),
+      ),
+    );
   return rows.length === ids.length;
 }
 
-router.get("/jobs", async (req, res): Promise<void> => {
+router.get("/jobs", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const query = ListJobsQueryParams.parse(req.query);
-  const conditions: SQL[] = [];
+  const conditions: SQL[] = [eq(jobsTable.companyId, companyId)];
   if (query.status) conditions.push(eq(jobsTable.status, query.status));
   if (query.search) {
     const term = `%${query.search}%`;
@@ -59,30 +67,40 @@ router.get("/jobs", async (req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(jobsTable)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(jobsTable.createdAt);
   const result = await getJobsList(rows);
   res.json(result);
 });
 
-router.post("/jobs", async (req, res): Promise<void> => {
+router.post("/jobs", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const body = CreateJobBody.parse(req.body);
 
   const [customer] = await db
     .select()
     .from(customersTable)
-    .where(eq(customersTable.id, body.customerId));
+    .where(
+      and(
+        eq(customersTable.id, body.customerId),
+        eq(customersTable.companyId, companyId),
+      ),
+    );
   if (!customer) {
     res.status(400).json({ error: "Customer not found" });
     return;
   }
 
-  if (body.assignedEmployeeIds && !(await allEmployeesExist(body.assignedEmployeeIds))) {
+  if (
+    body.assignedEmployeeIds &&
+    !(await allEmployeesExist(body.assignedEmployeeIds, companyId))
+  ) {
     res.status(400).json({ error: "One or more assigned employees not found" });
     return;
   }
 
   const job = await createJobWithRouting({
+    companyId,
     name: body.name,
     customer: customer.name,
     customerId: customer.id,
@@ -96,17 +114,18 @@ router.post("/jobs", async (req, res): Promise<void> => {
     await setJobAssignments(job.id, body.assignedEmployeeIds);
   }
 
-  const detail = await getJobDetail(job.id);
+  const detail = await getJobDetail(job.id, companyId);
   res.status(201).json(detail);
 });
 
-router.get("/jobs/:jobId", async (req, res): Promise<void> => {
+router.get("/jobs/:jobId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const jobId = parseIntParam(req.params.jobId);
   if (jobId === null) {
     res.status(400).json({ error: "Invalid job id" });
     return;
   }
-  const detail = await getJobDetail(jobId);
+  const detail = await getJobDetail(jobId, companyId);
   if (!detail) {
     res.status(404).json({ error: "Job not found" });
     return;
@@ -114,7 +133,8 @@ router.get("/jobs/:jobId", async (req, res): Promise<void> => {
   res.json(detail);
 });
 
-router.patch("/jobs/:jobId", async (req, res): Promise<void> => {
+router.patch("/jobs/:jobId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const jobId = parseIntParam(req.params.jobId);
   if (jobId === null) {
     res.status(400).json({ error: "Invalid job id" });
@@ -124,7 +144,7 @@ router.patch("/jobs/:jobId", async (req, res): Promise<void> => {
   const [existing] = await db
     .select()
     .from(jobsTable)
-    .where(eq(jobsTable.id, jobId));
+    .where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
   if (!existing) {
     res.status(404).json({ error: "Job not found" });
     return;
@@ -132,8 +152,6 @@ router.patch("/jobs/:jobId", async (req, res): Promise<void> => {
   const { assignedEmployeeIds, ...jobFields } = body;
   const updates: Record<string, unknown> = { ...jobFields };
 
-  // Validate every supplied field before performing any writes so a
-  // rejected request never leaves partial changes behind.
   if (body.jobNumber !== undefined) {
     const trimmed = body.jobNumber.trim();
     if (!trimmed) {
@@ -149,7 +167,12 @@ router.patch("/jobs/:jobId", async (req, res): Promise<void> => {
     const [customer] = await db
       .select()
       .from(customersTable)
-      .where(eq(customersTable.id, body.customerId));
+      .where(
+        and(
+          eq(customersTable.id, body.customerId),
+          eq(customersTable.companyId, companyId),
+        ),
+      );
     if (!customer) {
       res.status(400).json({ error: "Customer not found" });
       return;
@@ -158,14 +181,12 @@ router.patch("/jobs/:jobId", async (req, res): Promise<void> => {
   }
   if (
     assignedEmployeeIds !== undefined &&
-    !(await allEmployeesExist(assignedEmployeeIds))
+    !(await allEmployeesExist(assignedEmployeeIds, companyId))
   ) {
     res.status(400).json({ error: "One or more assigned employees not found" });
     return;
   }
 
-  // Apply the assignment replacement and job update atomically so a
-  // conflict (e.g. duplicate job number) rolls back everything.
   try {
     await db.transaction(async (tx) => {
       if (assignedEmployeeIds !== undefined) {
@@ -176,21 +197,18 @@ router.patch("/jobs/:jobId", async (req, res): Promise<void> => {
       }
     });
   } catch (err) {
-    // Unique violation on jobs.job_number (enforced by the DB so
-    // concurrent renames cannot both slip past a read-check).
     if (isUniqueViolation(err)) {
-      res
-        .status(409)
-        .json({ error: "Another job already uses this job number" });
+      res.status(409).json({ error: "Another job already uses this job number" });
       return;
     }
     throw err;
   }
-  const detail = await getJobDetail(jobId);
+  const detail = await getJobDetail(jobId, companyId);
   res.json(detail);
 });
 
-router.delete("/jobs/:jobId", async (req, res): Promise<void> => {
+router.delete("/jobs/:jobId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const jobId = parseIntParam(req.params.jobId);
   if (jobId === null) {
     res.status(400).json({ error: "Invalid job id" });
@@ -199,7 +217,7 @@ router.delete("/jobs/:jobId", async (req, res): Promise<void> => {
   const [existing] = await db
     .select()
     .from(jobsTable)
-    .where(eq(jobsTable.id, jobId));
+    .where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
   if (!existing) {
     res.status(404).json({ error: "Job not found" });
     return;
@@ -209,56 +227,61 @@ router.delete("/jobs/:jobId", async (req, res): Promise<void> => {
   res.status(204).send();
 });
 
-router.post("/jobs/:jobId/advance", async (req, res): Promise<void> => {
-  const jobId = parseIntParam(req.params.jobId);
-  if (jobId === null) {
-    res.status(400).json({ error: "Invalid job id" });
-    return;
-  }
-  const [existing] = await db
-    .select()
-    .from(jobsTable)
-    .where(eq(jobsTable.id, jobId));
-  if (!existing) {
-    res.status(404).json({ error: "Job not found" });
-    return;
-  }
-  const stages = await db
-    .select()
-    .from(stagesTable)
-    .where(eq(stagesTable.jobId, jobId))
-    .orderBy(stagesTable.orderIndex);
+router.post(
+  "/jobs/:jobId/advance",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const companyId = req.auth!.companyId;
+    const jobId = parseIntParam(req.params.jobId);
+    if (jobId === null) {
+      res.status(400).json({ error: "Invalid job id" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(jobsTable)
+      .where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
+    if (!existing) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const stages = await db
+      .select()
+      .from(stagesTable)
+      .where(eq(stagesTable.jobId, jobId))
+      .orderBy(stagesTable.orderIndex);
 
-  const currentIdx = stages.findIndex((s) => s.status === "in_progress");
-  if (currentIdx !== -1) {
-    await db
-      .update(stagesTable)
-      .set({ status: "complete" })
-      .where(eq(stagesTable.id, stages[currentIdx].id));
-    const next = stages[currentIdx + 1];
-    if (next) {
+    const currentIdx = stages.findIndex((s) => s.status === "in_progress");
+    if (currentIdx !== -1) {
       await db
         .update(stagesTable)
-        .set({ status: "in_progress" })
-        .where(eq(stagesTable.id, next.id));
-    } else {
-      await db
-        .update(jobsTable)
         .set({ status: "complete" })
-        .where(eq(jobsTable.id, jobId));
+        .where(eq(stagesTable.id, stages[currentIdx].id));
+      const next = stages[currentIdx + 1];
+      if (next) {
+        await db
+          .update(stagesTable)
+          .set({ status: "in_progress" })
+          .where(eq(stagesTable.id, next.id));
+      } else {
+        await db
+          .update(jobsTable)
+          .set({ status: "complete" })
+          .where(eq(jobsTable.id, jobId));
+      }
+    } else {
+      const firstNotStarted = stages.find((s) => s.status === "not_started");
+      if (firstNotStarted) {
+        await db
+          .update(stagesTable)
+          .set({ status: "in_progress" })
+          .where(eq(stagesTable.id, firstNotStarted.id));
+      }
     }
-  } else {
-    const firstNotStarted = stages.find((s) => s.status === "not_started");
-    if (firstNotStarted) {
-      await db
-        .update(stagesTable)
-        .set({ status: "in_progress" })
-        .where(eq(stagesTable.id, firstNotStarted.id));
-    }
-  }
 
-  const detail = await getJobDetail(jobId);
-  res.json(detail);
-});
+    const detail = await getJobDetail(jobId, companyId);
+    res.json(detail);
+  },
+);
 
 export default router;

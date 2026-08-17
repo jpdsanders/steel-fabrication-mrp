@@ -96,6 +96,8 @@ async function buildAll() {
       "wrangler",
       "zeromq",
       "zeromq-prebuilt",
+      // pdfkit's font stack (fontkit/brotli) breaks when bundled
+      "pdfkit",
       "playwright",
       "puppeteer",
       "puppeteer-core",

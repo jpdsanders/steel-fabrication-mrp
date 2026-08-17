@@ -10,6 +10,7 @@ import type { BomPart } from './bomPart';
 export interface BomAssembly {
   id?: number;
   mark: string;
+  /** @minimum 1 */
   quantity: number;
   /** @nullable */
   description?: string | null;

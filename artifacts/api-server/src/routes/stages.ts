@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { jobsTable, stagesTable } from "@workspace/db";
-import { eq, max } from "drizzle-orm";
+import { eq, and, max } from "drizzle-orm";
 import {
   AddJobStageBody,
   UpdateStageBody,
@@ -9,21 +9,26 @@ import {
 } from "@workspace/api-zod";
 import { getJobDetail } from "../services/production";
 import { parseIntParam } from "../lib/params";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-router.post("/jobs/:jobId/stages", async (req, res): Promise<void> => {
+/** Verify the job exists and belongs to the caller's company. Returns the job or null. */
+async function verifyJob(jobId: number, companyId: number) {
+  const [job] = await db
+    .select()
+    .from(jobsTable)
+    .where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
+  return job ?? null;
+}
+
+router.post("/jobs/:jobId/stages", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const jobId = parseIntParam(req.params.jobId);
-  if (jobId === null) {
-    res.status(400).json({ error: "Invalid job id" });
-    return;
-  }
+  if (jobId === null) { res.status(400).json({ error: "Invalid job id" }); return; }
   const body = AddJobStageBody.parse(req.body);
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId));
-  if (!job) {
-    res.status(404).json({ error: "Job not found" });
-    return;
-  }
+  const job = await verifyJob(jobId, companyId);
+  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
   let orderIndex = body.orderIndex;
   if (orderIndex === undefined) {
     const [{ value }] = await db
@@ -39,22 +44,17 @@ router.post("/jobs/:jobId/stages", async (req, res): Promise<void> => {
     orderIndex,
     status: "not_started",
   });
-  const detail = await getJobDetail(jobId);
+  const detail = await getJobDetail(jobId, companyId);
   res.status(201).json(detail);
 });
 
-router.post("/jobs/:jobId/stages/reorder", async (req, res): Promise<void> => {
+router.post("/jobs/:jobId/stages/reorder", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const jobId = parseIntParam(req.params.jobId);
-  if (jobId === null) {
-    res.status(400).json({ error: "Invalid job id" });
-    return;
-  }
+  if (jobId === null) { res.status(400).json({ error: "Invalid job id" }); return; }
   const body = ReorderJobStagesBody.parse(req.body);
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId));
-  if (!job) {
-    res.status(404).json({ error: "Job not found" });
-    return;
-  }
+  const job = await verifyJob(jobId, companyId);
+  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
   const stages = await db
     .select()
     .from(stagesTable)
@@ -68,13 +68,10 @@ router.post("/jobs/:jobId/stages/reorder", async (req, res): Promise<void> => {
     new Set(requested).size !== requested.length ||
     !requested.every((id) => currentIds.includes(id))
   ) {
-    res.status(400).json({
-      error: "stageIds must be the full list of this job's stage IDs",
-    });
+    res.status(400).json({ error: "stageIds must be the full list of this job's stage IDs" });
     return;
   }
 
-  // Locked (complete / in_progress) stages must keep their positions.
   const byId = new Map(stages.map((s) => [s.id, s]));
   for (let i = 0; i < requested.length; i++) {
     const current = stages[i];
@@ -82,68 +79,50 @@ router.post("/jobs/:jobId/stages/reorder", async (req, res): Promise<void> => {
     const currentLocked = current.status !== "not_started";
     const proposedLocked = proposed.status !== "not_started";
     if ((currentLocked || proposedLocked) && current.id !== proposed.id) {
-      res.status(409).json({
-        error: "Completed and in-progress stages cannot be moved",
-      });
+      res.status(409).json({ error: "Completed and in-progress stages cannot be moved" });
       return;
     }
   }
 
   await db.transaction(async (tx) => {
     for (let i = 0; i < requested.length; i++) {
-      await tx
-        .update(stagesTable)
-        .set({ orderIndex: i })
-        .where(eq(stagesTable.id, requested[i]));
+      await tx.update(stagesTable).set({ orderIndex: i }).where(eq(stagesTable.id, requested[i]));
     }
   });
 
-  const detail = await getJobDetail(jobId);
+  const detail = await getJobDetail(jobId, companyId);
   res.json(detail);
 });
 
-router.patch("/stages/:stageId", async (req, res): Promise<void> => {
+router.patch("/stages/:stageId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const stageId = parseIntParam(req.params.stageId);
-  if (stageId === null) {
-    res.status(400).json({ error: "Invalid stage id" });
-    return;
-  }
+  if (stageId === null) { res.status(400).json({ error: "Invalid stage id" }); return; }
   const body = UpdateStageBody.parse(req.body);
-  const [stage] = await db
-    .select()
-    .from(stagesTable)
-    .where(eq(stagesTable.id, stageId));
-  if (!stage) {
-    res.status(404).json({ error: "Stage not found" });
-    return;
-  }
+  const [stage] = await db.select().from(stagesTable).where(eq(stagesTable.id, stageId));
+  if (!stage) { res.status(404).json({ error: "Stage not found" }); return; }
+  // Verify the job belongs to caller's company
+  const job = await verifyJob(stage.jobId, companyId);
+  if (!job) { res.status(404).json({ error: "Stage not found" }); return; }
   await db.update(stagesTable).set(body).where(eq(stagesTable.id, stageId));
-  const detail = await getJobDetail(stage.jobId);
+  const detail = await getJobDetail(stage.jobId, companyId);
   res.json(detail);
 });
 
-router.delete("/stages/:stageId", async (req, res): Promise<void> => {
+router.delete("/stages/:stageId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const stageId = parseIntParam(req.params.stageId);
-  if (stageId === null) {
-    res.status(400).json({ error: "Invalid stage id" });
-    return;
-  }
-  const [stage] = await db
-    .select()
-    .from(stagesTable)
-    .where(eq(stagesTable.id, stageId));
-  if (!stage) {
-    res.status(404).json({ error: "Stage not found" });
-    return;
-  }
+  if (stageId === null) { res.status(400).json({ error: "Invalid stage id" }); return; }
+  const [stage] = await db.select().from(stagesTable).where(eq(stagesTable.id, stageId));
+  if (!stage) { res.status(404).json({ error: "Stage not found" }); return; }
+  const job = await verifyJob(stage.jobId, companyId);
+  if (!job) { res.status(404).json({ error: "Stage not found" }); return; }
   if (stage.status !== "not_started") {
-    res.status(409).json({
-      error: "Only not-started stages can be deleted",
-    });
+    res.status(409).json({ error: "Only not-started stages can be deleted" });
     return;
   }
   await db.delete(stagesTable).where(eq(stagesTable.id, stageId));
-  const detail = await getJobDetail(stage.jobId);
+  const detail = await getJobDetail(stage.jobId, companyId);
   res.json(detail);
 });
 

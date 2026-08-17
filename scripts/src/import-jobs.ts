@@ -4,6 +4,7 @@ import {
   jobsTable,
   stagesTable,
   customersTable,
+  companiesTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import * as XLSX from "xlsx";
@@ -162,6 +163,17 @@ function buildNotes(job: TrackerJob): string {
 }
 
 async function main() {
+  // Jobs in the tracker belong to S&S Steel
+  const [ssSteelCo] = await db
+    .select({ id: companiesTable.id })
+    .from(companiesTable)
+    .where(eq(companiesTable.slug, "ss-steel"))
+    .limit(1);
+  if (!ssSteelCo) {
+    throw new Error("S&S Steel company not found. Run `pnpm --filter @workspace/scripts run seed:companies` first.");
+  }
+  const companyId = ssSteelCo.id;
+
   const trackerJobs = extract();
   console.log(
     `Extracted ${trackerJobs.length} jobs from tracker: ${trackerJobs.map((j) => `${j.emJob} (${j.customerJob})`).join(", ")}`,
@@ -202,6 +214,7 @@ async function main() {
       const [job] = await tx
         .insert(jobsTable)
         .values({
+          companyId,
           jobNumber: tj.emJob,
           name: `${tj.description} — ${tj.customerJob}`,
           customer: customer.name,

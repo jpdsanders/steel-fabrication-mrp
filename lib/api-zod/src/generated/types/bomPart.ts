@@ -10,6 +10,7 @@ export interface BomPart {
   id?: number;
   /** @nullable */
   partMark?: string | null;
+  /** @minimum 1 */
   quantity: number;
   /** @nullable */
   profileType?: string | null;

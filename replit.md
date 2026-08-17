@@ -7,12 +7,13 @@ A production-tracking MRP for a structural steel fabrication shop: jobs move thr
 - `pnpm --filter @workspace/api-server run dev` — run the API server
 - `pnpm --filter @workspace/mrp run dev` — run the web app (managed by the `artifacts/mrp: web` workflow)
 - `pnpm --filter @workspace/scripts run seed` — reset & seed demo data (jobs, stages, employees, time entries)
+- `pnpm --filter @workspace/scripts run seed:companies` — seed the three initial companies (S&S Steel, St. George Steel, Exclusive Metals) and the super-admin user — idempotent; prints a one-time bootstrap password on first run (set `SEED_ADMIN_PASSWORD` env var to supply your own)
 - `pnpm --filter @workspace/scripts run import:customers` — import real customers/contacts/addresses from the bid log spreadsheet in `attached_assets/` (idempotent; reconciles missing child rows on rerun)
 - `pnpm --filter @workspace/scripts run import:jobs` — import real jobs + stage routing from the production tracker spreadsheet in `attached_assets/` (idempotent by job number; legacy jobs keep their "EM ####" numbers; assembly detail goes into job notes)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `DATABASE_URL` — Postgres connection string, `SESSION_SECRET` — secret for session signing (min 32 chars)
 
 ## Stack
 
@@ -45,7 +46,11 @@ A production-tracking MRP for a structural steel fabrication shop: jobs move thr
 - Default workflow: Estimating → Fabrication → Welding → Paint → Inspection → Shipping. First stage starts `in_progress` on job creation.
 - `advanceJobStage` marks the current `in_progress` stage `complete` and starts the next; advancing past the last stage sets the job `complete`.
 - `percentComplete` = completed stages / total stages. `isPastDue` = dueDate < today AND status not complete/closed.
-- No auth yet (product decision for this phase).
+- Auth: session-based via `express-session` + `connect-pg-simple` (table `user_sessions`, auto-created). Login: `POST /api/auth/me` reads the session; `POST /api/auth/login` sets it. All API routes except `/api/health` and `/api/auth/login` require a valid session. The super-admin can switch active company via `POST /api/auth/switch-company`.
+- Multi-tenant: every tenant table has a non-null `company_id` FK. `requireAuth` middleware populates `req.auth = { userId, companyId, superAdmin, ... }`. All route queries are scoped by `req.auth.companyId` (super-admins included — they always have an active company). See `artifacts/api-server/src/middlewares/auth.ts`.
+- Companies: three initial companies (S&S Steel slug `ss-steel`, St. George Steel slug `stg-steel`, Exclusive Metals slug `exclusive-metals`). New companies can be added via `POST /api/companies` (super-admin) or by re-running `seed:companies`.
+- Shared material catalog (`material_catalog` table): not company-scoped; visible from any company. `isStale` = price not updated in 90+ days (computed at query time; not stored).
+- Job handoff: `job_handoffs` table records cross-company job pushes (documents, drawings, CNC files, job context). `source_job_id` is nullable — see OPEN_QUESTIONS.md #1.
 - Documents belong to exactly one parent: `documents` has nullable `jobId` XOR `estimateId` (DB check constraint, both cascade delete). Estimate uploads mirror job uploads (`/estimates/{id}/documents`); converting an estimate moves its documents to the new job (jobId set, estimateId cleared); deleting an estimate removes its stored objects first. Job documents are stored in Replit App Storage (GCS). The `documents` table stores metadata + `storageKey` (never exposed via API). Uploads stream through the server (multer memory → GCS) so file type (.pdf .dwg .dxf .nc1 .nc .jpg .jpeg .png .xlsx .csv) and size (50 MB max) are enforced server-side. Deleting a document or its job also deletes the stored object (`deleteJobDocumentObjects` runs before job delete since DB cascade would drop the rows first).
 - Job assignments: `job_assignments` join table (jobId+employeeId unique, cascade deletes). `assignedEmployeeIds` on job create/PATCH is a full replacement list; `assignedEmployees` ({id,name}[]) is returned on JobDetail and DashboardJob. Dashboard "Assigned to" filter is client-side; dashboard status filter defaults to "active".
 - BOM (KISS import): `bom_assemblies`/`bom_parts` cascade from jobs. Parser at `api-server/src/lib/kissParser.ts` (H header, D rows; a D row whose partMark equals the assembly mark starts a new assembly). POST `/bom/parse` previews without saving; POST `/jobs/{id}/bom` replaces the whole BOM and records the original .kss as an `nc_data` document in one transaction (object saved to GCS first, cleaned up on failure). Only `.kss` accepted server-side. Material totals grouped by profileType|size|grade; KISS length column is mm (Tekla) and is converted to inches on import; lengths stored in inches and displayed as feet-and-inches (formatter in `artifacts/mrp/src/lib/units.ts`). UI: `components/jobs/BomCard.tsx` (job detail card + shared preview/upload helpers used by the New Job dialog).

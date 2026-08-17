@@ -1,31 +1,48 @@
 import { useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useGetEstimate,
   useUpdateEstimate,
   useDeleteEstimate,
   useConvertEstimateToJob,
+  useListEstimateLaborLines,
+  useCreateEstimateLaborLine,
+  useUpdateEstimateLaborLine,
+  useDeleteEstimateLaborLine,
+  useGetEstimatePricing,
   getGetEstimateQueryKey,
   getListEstimatesQueryKey,
   getListJobsQueryKey,
   getGetDashboardJobsQueryKey,
   getGetDashboardSummaryQueryKey,
+  getGetEstimatePricingQueryKey,
+  getListEstimateLaborLinesQueryKey,
+  getGetEstimateBomQueryKey,
   EstimateUpdateStatus,
+  EstimateType,
+  EstimateQuoteFormat
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ChevronLeft, Trash2, Plus, ArrowUp, ArrowDown, Hammer, XCircle, Pencil } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ChevronLeft, Trash2, Plus, ArrowUp, ArrowDown, Hammer, XCircle, Pencil, Download, CheckCircle2, AlertTriangle, FileText, Upload } from "lucide-react";
 import { estimateStatusBadge } from "./EstimatesList";
 import DocumentsCard from "@/components/jobs/DocumentsCard";
+import { getEstimateTypeLabel } from "@/lib/estimateTypeLabels";
+import { getApiUrl } from "@/lib/api";
+import { formatFeetInches } from "@/lib/units";
+import { EstimateLaborCard } from "./EstimateLaborCard";
+import { EstimatePricingSummaryCard } from "./EstimatePricingSummaryCard";
+import EstimateBomCard from "./EstimateBomCard";
 
 const DEFAULT_STAGES = [
   { name: "Estimating", estimatedHours: 2 },
@@ -50,6 +67,7 @@ export default function EstimateDetail() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getGetEstimateQueryKey(estimateId) });
     queryClient.invalidateQueries({ queryKey: getListEstimatesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetEstimatePricingQueryKey(estimateId) });
   };
 
   const updateEstimate = useUpdateEstimate({
@@ -105,6 +123,27 @@ export default function EstimateDetail() {
         </div>
 
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={async () => {
+              const url = getApiUrl(`estimates/${estimateId}/quote.pdf${estimate.quoteFormat ? `?format=${estimate.quoteFormat}` : ""}`);
+              const res = await fetch(url, { credentials: "include" });
+              if (!res.ok) return;
+              const blob = await res.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = objectUrl;
+              a.download = `${estimate.bidNumber ?? "quote"}-quote.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(objectUrl);
+            }}
+          >
+            <Download className="w-4 h-4" /> Download quote PDF
+          </Button>
+
           {!isFinal && estimate.status !== "lost" && (
             <ConvertDialog estimateId={estimateId} defaultHours={estimate.estimatedHours} />
           )}
@@ -145,7 +184,8 @@ export default function EstimateDetail() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Bid Details</CardTitle>
-            {!isFinal && <EditEstimateDialog estimate={estimate} onSaved={invalidate} />}
+            {/* Won estimates stay editable until job lock-in; only status changes are guarded server-side */}
+            <EditEstimateDialog estimate={estimate} onSaved={invalidate} />
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -154,12 +194,24 @@ export default function EstimateDetail() {
                 <div className="font-medium capitalize">{estimate.status}</div>
               </div>
               <div>
-                <Label className="text-muted-foreground">Estimated Hours</Label>
-                <div className="font-medium">{estimate.estimatedHours.toFixed(1)}h</div>
+                <Label className="text-muted-foreground">Type</Label>
+                <div className="font-medium">{getEstimateTypeLabel(estimate.type)}</div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Quote Format</Label>
+                <div className="font-medium capitalize">{estimate.quoteFormat}</div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Target Margin</Label>
+                <div className="font-medium">{estimate.marginPercent}%</div>
               </div>
               <div>
                 <Label className="text-muted-foreground">Amount</Label>
-                <div className="font-medium">{estimate.amount != null ? `$${estimate.amount.toLocaleString()}` : "—"}</div>
+                <div className="font-medium">{estimate.amount != null ? `$${estimate.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Estimated Hours</Label>
+                <div className="font-medium">{estimate.estimatedHours.toFixed(1)}h</div>
               </div>
               <div>
                 <Label className="text-muted-foreground">Bid Date</Label>
@@ -183,6 +235,12 @@ export default function EstimateDetail() {
         </Card>
       </div>
 
+      <div className="grid grid-cols-1 gap-6">
+        <EstimatePricingSummaryCard estimate={estimate} onSaved={invalidate} />
+        <EstimateLaborCard estimateId={estimateId} />
+        {estimate.type === "detailed" && <EstimateBomCard estimateId={estimateId} />}
+      </div>
+
       <DocumentsCard owner={{ type: "estimate", id: estimateId }} />
 
       {estimate.status === "draft" && (
@@ -199,10 +257,13 @@ export default function EstimateDetail() {
   );
 }
 
-function EditEstimateDialog({ estimate, onSaved }: { estimate: { id: number; name: string; customer: string; estimatedHours: number; amount?: number | null; bidDate?: string | null; dueDate?: string | null; notes?: string | null }; onSaved: () => void }) {
+function EditEstimateDialog({ estimate, onSaved }: { estimate: { id: number; name: string; customer: string; type: EstimateType; quoteFormat: EstimateQuoteFormat; marginPercent: number; estimatedHours: number; amount?: number | null; bidDate?: string | null; dueDate?: string | null; notes?: string | null }; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(estimate.name);
   const [customer, setCustomer] = useState(estimate.customer);
+  const [type, setType] = useState<EstimateType>(estimate.type);
+  const [quoteFormat, setQuoteFormat] = useState<EstimateQuoteFormat>(estimate.quoteFormat);
+  const [marginPercent, setMarginPercent] = useState(String(estimate.marginPercent));
   const [estimatedHours, setEstimatedHours] = useState(String(estimate.estimatedHours));
   const [amount, setAmount] = useState(estimate.amount != null ? String(estimate.amount) : "");
   const [bidDate, setBidDate] = useState(estimate.bidDate ?? "");
@@ -240,6 +301,34 @@ function EditEstimateDialog({ estimate, onSaved }: { estimate: { id: number; nam
             <Input value={customer} onChange={(e) => setCustomer(e.target.value)} />
           </div>
           <div className="space-y-2">
+            <Label>Estimate Type</Label>
+            <Select value={type} onValueChange={(val) => setType(val as EstimateType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="preliminary">{getEstimateTypeLabel("preliminary")}</SelectItem>
+                <SelectItem value="detailed">{getEstimateTypeLabel("detailed")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Quote Format</Label>
+            <Select value={quoteFormat} onValueChange={(val) => setQuoteFormat(val as EstimateQuoteFormat)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="itemized">Itemized</SelectItem>
+                <SelectItem value="summary">Summary Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Target Margin (%)</Label>
+            <Input type="number" min="0" max="100" step="0.1" value={marginPercent} onChange={(e) => setMarginPercent(e.target.value)} />
+          </div>
+          <div className="space-y-2">
             <Label>Estimated Hours</Label>
             <Input type="number" min="0" step="0.5" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} />
           </div>
@@ -269,6 +358,9 @@ function EditEstimateDialog({ estimate, onSaved }: { estimate: { id: number; nam
                 data: {
                   name,
                   customer,
+                  type,
+                  quoteFormat,
+                  marginPercent: Number(marginPercent) || 0,
                   estimatedHours: Number(estimatedHours) || 0,
                   amount: amount ? Number(amount) : null,
                   bidDate: bidDate || null,

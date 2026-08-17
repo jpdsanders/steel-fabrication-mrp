@@ -1,13 +1,14 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { employeesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import {
   CreateEmployeeBody,
   UpdateEmployeeBody,
   ListEmployeesResponse,
 } from "@workspace/api-zod";
 import { parseIntParam, parseQueryBool } from "../lib/params";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -22,21 +23,26 @@ function toView(row: typeof employeesTable.$inferSelect) {
   };
 }
 
-router.get("/employees", async (req, res): Promise<void> => {
+router.get("/employees", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const activeOnly = parseQueryBool(req.query.activeOnly);
+  const conditions = [eq(employeesTable.companyId, companyId)];
+  if (activeOnly) conditions.push(eq(employeesTable.active, true));
   const rows = await db
     .select()
     .from(employeesTable)
-    .where(activeOnly ? eq(employeesTable.active, true) : undefined)
+    .where(and(...conditions))
     .orderBy(employeesTable.name);
   res.json(ListEmployeesResponse.parse(rows.map(toView)));
 });
 
-router.post("/employees", async (req, res): Promise<void> => {
+router.post("/employees", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const body = CreateEmployeeBody.parse(req.body);
   const [row] = await db
     .insert(employeesTable)
     .values({
+      companyId,
       name: body.name,
       employeeCode: body.employeeCode ?? null,
       jobTitle: body.jobTitle ?? null,
@@ -46,7 +52,8 @@ router.post("/employees", async (req, res): Promise<void> => {
   res.status(201).json(toView(row));
 });
 
-router.patch("/employees/:employeeId", async (req, res): Promise<void> => {
+router.patch("/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const employeeId = parseIntParam(req.params.employeeId);
   if (employeeId === null) {
     res.status(400).json({ error: "Invalid employee id" });
@@ -56,7 +63,7 @@ router.patch("/employees/:employeeId", async (req, res): Promise<void> => {
   const [existing] = await db
     .select()
     .from(employeesTable)
-    .where(eq(employeesTable.id, employeeId));
+    .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, companyId)));
   if (!existing) {
     res.status(404).json({ error: "Employee not found" });
     return;
@@ -72,7 +79,8 @@ router.patch("/employees/:employeeId", async (req, res): Promise<void> => {
   res.json(toView(row));
 });
 
-router.delete("/employees/:employeeId", async (req, res): Promise<void> => {
+router.delete("/employees/:employeeId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const employeeId = parseIntParam(req.params.employeeId);
   if (employeeId === null) {
     res.status(400).json({ error: "Invalid employee id" });
@@ -81,7 +89,7 @@ router.delete("/employees/:employeeId", async (req, res): Promise<void> => {
   const [existing] = await db
     .select()
     .from(employeesTable)
-    .where(eq(employeesTable.id, employeeId));
+    .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, companyId)));
   if (!existing) {
     res.status(404).json({ error: "Employee not found" });
     return;

@@ -4,6 +4,7 @@ import {
   customersTable,
   contactsTable,
   customerAddressesTable,
+  companiesTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import * as XLSX from "xlsx";
@@ -84,6 +85,17 @@ function extract(): Extracted[] {
 }
 
 async function main() {
+  // Customers in the bid log belong to S&S Steel
+  const [ssSteelCo] = await db
+    .select({ id: companiesTable.id })
+    .from(companiesTable)
+    .where(eq(companiesTable.slug, "ss-steel"))
+    .limit(1);
+  if (!ssSteelCo) {
+    throw new Error("S&S Steel company not found. Run `pnpm --filter @workspace/scripts run seed:companies` first.");
+  }
+  const companyId = ssSteelCo.id;
+
   const extracted = extract();
   console.log(
     `Extracted ${extracted.length} distinct customers from bid log sheets ${SHEETS.join(", ")}.`,
@@ -120,6 +132,7 @@ async function main() {
         const [customer] = await tx
           .insert(customersTable)
           .values({
+            companyId,
             name: e.name,
             phone: [...e.phones][0] ?? null,
             fax: [...e.faxes][0] ?? null,

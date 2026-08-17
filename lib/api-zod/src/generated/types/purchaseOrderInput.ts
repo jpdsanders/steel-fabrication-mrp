@@ -8,5 +8,14 @@
 import type { PurchaseOrderLineInput } from './purchaseOrderLineInput';
 
 export interface PurchaseOrderInput {
+  /** Required — a PO cannot be created without a vendor. */
+  vendorId: number;
+  /**
+     * Required when the vendor is not Approved/Conditional on the AVL.
+     * @nullable
+     */
+  vendorExceptionJustification?: string | null;
+  /** PO-level quality clause ids */
+  qualityClauseIds?: number[];
   lines: PurchaseOrderLineInput[];
 }

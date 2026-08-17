@@ -5,6 +5,7 @@
  * Steel Fabrication MRP API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PurchaseOrderLineReceiptStatus } from './purchaseOrderLineReceiptStatus';
 
 export interface PurchaseOrderLine {
   id: number;
@@ -20,4 +21,26 @@ export interface PurchaseOrderLine {
      * @nullable
      */
   lengthIn?: number | null;
+  /**
+     * Price per piece
+     * @nullable
+     */
+  unitPrice?: number | null;
+  /**
+     * unitPrice * pieces, computed by the server
+     * @nullable
+     */
+  extendedPrice?: number | null;
+  /**
+     * Vendor promise date (YYYY-MM-DD)
+     * @nullable
+     */
+  promiseDate?: string | null;
+  qualityClauseIds: number[];
+  /** Total pieces received against this PO line across all receiving records */
+  receivedPieces: number;
+  /** Ordered pieces minus received pieces; negative means over-receipt */
+  remainingPieces: number;
+  /** Receipt status derived from ordered vs received pieces */
+  receiptStatus: PurchaseOrderLineReceiptStatus;
 }

@@ -6,7 +6,10 @@ import {
   useCreateEstimate,
   getListEstimatesQueryKey,
   ListEstimatesStatus,
+  EstimateInputType,
+  EstimateInputQuoteFormat
 } from "@workspace/api-client-react";
+import { getEstimateTypeLabel, ESTIMATE_TYPES } from "@/lib/estimateTypeLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -99,6 +102,7 @@ export default function EstimatesList() {
               <TableHead>Bid #</TableHead>
               <TableHead>Name / Customer</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Est. Hours</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Job</TableHead>
@@ -107,11 +111,11 @@ export default function EstimatesList() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">Loading estimates...</TableCell>
+                <TableCell colSpan={7} className="h-24 text-center">Loading estimates...</TableCell>
               </TableRow>
             ) : estimates?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No estimates found.</TableCell>
+                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No estimates found.</TableCell>
               </TableRow>
             ) : (
               estimates?.map((est) => (
@@ -126,6 +130,7 @@ export default function EstimatesList() {
                     <div className="text-xs text-muted-foreground">{est.customer}</div>
                   </TableCell>
                   <TableCell>{estimateStatusBadge(est.status)}</TableCell>
+                  <TableCell>{getEstimateTypeLabel(est.type)}</TableCell>
                   <TableCell>{est.estimatedHours.toFixed(1)}h</TableCell>
                   <TableCell>{est.amount != null ? `$${est.amount.toLocaleString()}` : "—"}</TableCell>
                   <TableCell>
@@ -151,6 +156,9 @@ function NewEstimateDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [customer, setCustomer] = useState("");
+  const [type, setType] = useState<EstimateInputType>("preliminary");
+  const [marginPercent, setMarginPercent] = useState("20");
+  const [quoteFormat, setQuoteFormat] = useState<EstimateInputQuoteFormat>("itemized");
   const [estimatedHours, setEstimatedHours] = useState("");
   const [amount, setAmount] = useState("");
   const [bidDate, setBidDate] = useState("");
@@ -159,6 +167,7 @@ function NewEstimateDialog() {
   const [attachments, setAttachments] = useState<
     { file: File; category: DocumentCategory }[]
   >([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -167,6 +176,9 @@ function NewEstimateDialog() {
   const resetForm = () => {
     setName("");
     setCustomer("");
+    setType("preliminary");
+    setMarginPercent("20");
+    setQuoteFormat("itemized");
     setEstimatedHours("");
     setAmount("");
     setBidDate("");
@@ -220,6 +232,9 @@ function NewEstimateDialog() {
       data: {
         name,
         customer,
+        type,
+        marginPercent: Number(marginPercent) || 0,
+        quoteFormat,
         estimatedHours: Number(estimatedHours) || 0,
         amount: amount ? Number(amount) : null,
         bidDate: bidDate || null,
@@ -248,6 +263,34 @@ function NewEstimateDialog() {
             <div className="space-y-2">
               <Label>Customer</Label>
               <Input required value={customer} onChange={(e) => setCustomer(e.target.value)} data-testid="input-estimate-customer" />
+            </div>
+            <div className="space-y-2">
+              <Label>Estimate Type</Label>
+              <Select value={type} onValueChange={(val) => setType(val as EstimateInputType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="preliminary">{getEstimateTypeLabel("preliminary")}</SelectItem>
+                  <SelectItem value="detailed">{getEstimateTypeLabel("detailed")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Quote Format</Label>
+              <Select value={quoteFormat} onValueChange={(val) => setQuoteFormat(val as EstimateInputQuoteFormat)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="itemized">Itemized</SelectItem>
+                  <SelectItem value="summary">Summary Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Target Margin (%)</Label>
+              <Input type="number" min="0" max="100" step="0.1" required value={marginPercent} onChange={(e) => setMarginPercent(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Estimated Hours</Label>

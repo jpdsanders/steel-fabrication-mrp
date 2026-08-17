@@ -10,7 +10,7 @@ import {
   bomAssembliesTable,
   bomPartsTable,
 } from "@workspace/db";
-import { eq, inArray, asc } from "drizzle-orm";
+import { eq, and, inArray, asc } from "drizzle-orm";
 
 export const DEFAULT_STAGES = [
   "Estimating",
@@ -80,6 +80,7 @@ export interface StageSpec {
 }
 
 export interface CreateJobParams {
+  companyId: number;
   name: string;
   customer: string;
   customerId?: number | null;
@@ -99,6 +100,7 @@ export async function createJobWithRouting(params: CreateJobParams) {
   const [job] = await db
     .insert(jobsTable)
     .values({
+      companyId: params.companyId,
       jobNumber,
       name: params.name,
       customer: params.customer,
@@ -465,6 +467,33 @@ const PROGRESS_INDEX = new Map(
 const INSPECTED_INDEX = ASSEMBLY_PROGRESS_ORDER.indexOf("Inspected");
 const SHIPPED_INDEX = ASSEMBLY_PROGRESS_ORDER.indexOf("Shipped");
 
+// ---------------------------------------------------------------------------
+// Assembly stage state machine (Phase 6). `bom_assemblies.currentStage` is the
+// single assembly-level status system — values are constrained to the
+// canonical pipeline, "Shipped" is only reachable through shipment departure,
+// and Ready to Ship is defined as: currentStage = Inspected AND not on hold.
+// ---------------------------------------------------------------------------
+
+export const INSPECTED_STAGE = "Inspected";
+export const SHIPPED_STAGE = "Shipped";
+
+/** Resolve a caller-supplied stage to its canonical name, or null if unknown. */
+export function canonicalAssemblyStage(stage: string): string | null {
+  const idx = PROGRESS_INDEX.get(stage.trim().toLowerCase());
+  return idx === undefined ? null : ASSEMBLY_PROGRESS_ORDER[idx];
+}
+
+/** Ready to Ship: Inspected and not on hold. The shipping gate. */
+export function isReadyToShip(
+  asm: Pick<AssemblyRow, "currentStage" | "onHold">,
+): boolean {
+  return (
+    !asm.onHold &&
+    asm.currentStage !== null &&
+    canonicalAssemblyStage(asm.currentStage) === INSPECTED_STAGE
+  );
+}
+
 
 /**
  * Quantity-weighted % done and derived status across the canonical assembly
@@ -540,8 +569,15 @@ function assemblyView(asm: AssemblyRow, parts: PartRow[]) {
   };
 }
 
-export async function getJobDetail(jobId: number) {
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId));
+export async function getJobDetail(jobId: number, companyId?: number) {
+  const [job] = await db
+    .select()
+    .from(jobsTable)
+    .where(
+      companyId !== undefined
+        ? and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId))
+        : eq(jobsTable.id, jobId),
+    );
   if (!job) return null;
   const stages = await db
     .select()
@@ -647,10 +683,17 @@ export async function getJobsList(jobs: JobRow[]) {
   });
 }
 
-/** Count of employees currently clocked in (open entries) grouped by jobId. */
-async function activeCountByJob(): Promise<Map<number, number>> {
-  const open = await db.select().from(timeEntriesTable);
+/**
+ * Count employees currently clocked in (open time entries) grouped by jobId.
+ * Scoped to the supplied job IDs so cross-company data never leaks.
+ */
+async function activeCountByJob(jobIds: number[]): Promise<Map<number, number>> {
   const result = new Map<number, number>();
+  if (jobIds.length === 0) return result;
+  const open = await db
+    .select()
+    .from(timeEntriesTable)
+    .where(inArray(timeEntriesTable.jobId, jobIds));
   for (const e of open) {
     if (e.clockOut) continue;
     result.set(e.jobId, (result.get(e.jobId) ?? 0) + 1);
@@ -658,9 +701,10 @@ async function activeCountByJob(): Promise<Map<number, number>> {
   return result;
 }
 
-export async function getDashboardSummary() {
-  const jobs = await db.select().from(jobsTable);
-  const activeCounts = await activeCountByJob();
+export async function getDashboardSummary(companyId: number) {
+  const jobs = await db.select().from(jobsTable).where(eq(jobsTable.companyId, companyId));
+  const jobIds = jobs.map((j) => j.id);
+  const activeCounts = await activeCountByJob(jobIds);
   let clockedInCount = 0;
   for (const c of activeCounts.values()) clockedInCount += c;
 
@@ -688,10 +732,10 @@ export async function getDashboardSummary() {
   };
 }
 
-export async function getDashboardJobs() {
-  const jobs = await db.select().from(jobsTable);
+export async function getDashboardJobs(companyId: number) {
+  const jobs = await db.select().from(jobsTable).where(eq(jobsTable.companyId, companyId));
   const { stagesByJob, stageActual } = await loadJobBundles(jobs);
-  const activeCounts = await activeCountByJob();
+  const activeCounts = await activeCountByJob(jobs.map((j) => j.id));
   const assignments = await assignedEmployeesByJob(jobs.map((j) => j.id));
 
   // Load assemblies for all jobs in one query

@@ -5,18 +5,30 @@ import path from "path";
 import { db } from "@workspace/db";
 import {
   jobsTable,
+  estimatesTable,
   documentsTable,
   bomAssembliesTable,
   bomPartsTable,
   processingPathOptionsTable,
+  shipmentsTable,
 } from "@workspace/db";
-import { eq, inArray, asc, isNotNull, sql } from "drizzle-orm";
+
+/** Thrown when a BOM replacement would destroy shipping history. */
+class BomLockedByShippingError extends Error {
+  constructor() {
+    super(
+      "This job has shipments; its BOM can no longer be replaced by re-import. Delete planned shipments first — departed shipments permanently lock the BOM for traceability.",
+    );
+  }
+}
+import { eq, and, or, ne, isNull, inArray, asc, isNotNull, sql } from "drizzle-orm";
 import {
   parseKissFile,
   KissParseError,
   type ParsedBom,
   type ParsedBomAssembly,
 } from "../lib/kissParser";
+import { absorbJobBomIntoEstimate } from "./estimateBom";
 import { parseIntParam } from "../lib/params";
 import {
   UpdateBomAssemblyBody,
@@ -29,6 +41,34 @@ import {
   deleteStoredObject,
   MAX_DOCUMENT_SIZE_BYTES,
 } from "./documents";
+import { requireAuth } from "../middlewares/auth";
+import {
+  canonicalAssemblyStage,
+  ASSEMBLY_PROGRESS_ORDER,
+  INSPECTED_STAGE,
+  SHIPPED_STAGE,
+} from "../services/production";
+
+/** Verify that an assembly belongs (via its job) to the given company. */
+async function verifyAssemblyOwnership(assemblyId: number, companyId: number): Promise<boolean> {
+  const rows = await db
+    .select({ jobId: bomAssembliesTable.jobId })
+    .from(bomAssembliesTable)
+    .innerJoin(jobsTable, eq(bomAssembliesTable.jobId, jobsTable.id))
+    .where(and(eq(bomAssembliesTable.id, assemblyId), eq(jobsTable.companyId, companyId)));
+  return rows.length > 0;
+}
+
+/** Verify that a BOM part belongs (via its assembly's job) to the given company. */
+async function verifyPartOwnership(partId: number, companyId: number): Promise<boolean> {
+  const rows = await db
+    .select({ assemblyId: bomPartsTable.assemblyId })
+    .from(bomPartsTable)
+    .innerJoin(bomAssembliesTable, eq(bomPartsTable.assemblyId, bomAssembliesTable.id))
+    .innerJoin(jobsTable, eq(bomAssembliesTable.jobId, jobsTable.id))
+    .where(and(eq(bomPartsTable.id, partId), eq(jobsTable.companyId, companyId)));
+  return rows.length > 0;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -237,6 +277,17 @@ async function replaceJobBom(
 ): Promise<void> {
   let partDocs: { storageKey: string }[] = [];
   await db.transaction(async (tx) => {
+    // Hard gate: once the job has shipping history, its BOM can no longer be
+    // replaced — a re-import would cascade-delete shipment manifests and
+    // effectively "unship" departed assemblies, destroying traceability.
+    const [existingShipment] = await tx
+      .select({ id: shipmentsTable.id })
+      .from(shipmentsTable)
+      .where(eq(shipmentsTable.jobId, jobId))
+      .limit(1);
+    if (existingShipment) {
+      throw new BomLockedByShippingError();
+    }
     // Part documents cascade-delete with their parts; capture their storage
     // keys inside the transaction (just before the delete) so the stored
     // objects can be cleaned up after the swap commits.
@@ -296,12 +347,24 @@ function optionToView(row: typeof processingPathOptionsTable.$inferSelect) {
   };
 }
 
-/** Inserts any distinct processing path values used on assemblies that are missing from the options table. */
-async function seedOptionsFromAssemblies(): Promise<void> {
+/**
+ * processing_path_options is a SHARED reference table (intentionally not company-scoped),
+ * analogous to the material catalog. The option names ("Cut", "Bend", "Roll", etc.) are
+ * shop-wide vocabulary that has no confidential per-company content.
+ *
+ * Auto-seed only reads the *caller's* company's assemblies so that one tenant's private
+ * processing-path text cannot be discovered by another tenant via the options list.
+ */
+async function seedOptionsFromAssemblies(companyId: number): Promise<void> {
+  // Limit discovery to the caller's company's assemblies via the job FK
   const used = await db
     .selectDistinct({ value: bomAssembliesTable.processingPath })
     .from(bomAssembliesTable)
-    .where(isNotNull(bomAssembliesTable.processingPath));
+    .innerJoin(jobsTable, eq(bomAssembliesTable.jobId, jobsTable.id))
+    .where(and(
+      isNotNull(bomAssembliesTable.processingPath),
+      eq(jobsTable.companyId, companyId),
+    ));
   const values = used
     .map((r) => r.value?.trim())
     .filter((v): v is string => !!v);
@@ -312,8 +375,8 @@ async function seedOptionsFromAssemblies(): Promise<void> {
     .onConflictDoNothing();
 }
 
-router.get("/processing-path-options", async (_req, res): Promise<void> => {
-  await seedOptionsFromAssemblies();
+router.get("/processing-path-options", requireAuth, async (req, res): Promise<void> => {
+  await seedOptionsFromAssemblies(req.auth!.companyId);
   const rows = await db
     .select()
     .from(processingPathOptionsTable)
@@ -321,7 +384,7 @@ router.get("/processing-path-options", async (_req, res): Promise<void> => {
   res.json(rows.map(optionToView));
 });
 
-router.post("/processing-path-options", async (req, res): Promise<void> => {
+router.post("/processing-path-options", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateProcessingPathOptionBody.safeParse(req.body);
   const name = parsed.success ? parsed.data.name.trim() : "";
   if (!parsed.success || name === "") {
@@ -358,6 +421,7 @@ router.post("/processing-path-options", async (req, res): Promise<void> => {
 
 router.post(
   "/bom/parse",
+  requireAuth,
   uploadKissFile,
   async (req, res): Promise<void> => {
     if (!req.file) {
@@ -380,13 +444,14 @@ router.post(
   },
 );
 
-router.get("/jobs/:jobId/bom", async (req, res): Promise<void> => {
+router.get("/jobs/:jobId/bom", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const jobId = parseIntParam(req.params.jobId);
   if (jobId === null) {
     res.status(400).json({ error: "Invalid job id" });
     return;
   }
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId));
+  const [job] = await db.select().from(jobsTable).where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
   if (!job) {
     res.status(404).json({ error: "Job not found" });
     return;
@@ -397,8 +462,10 @@ router.get("/jobs/:jobId/bom", async (req, res): Promise<void> => {
 
 router.post(
   "/jobs/:jobId/bom",
+  requireAuth,
   uploadKissFile,
   async (req, res): Promise<void> => {
+    const companyId = req.auth!.companyId;
     const jobId = parseIntParam(req.params.jobId);
     if (jobId === null) {
       res.status(400).json({ error: "Invalid job id" });
@@ -407,7 +474,7 @@ router.post(
     const [job] = await db
       .select()
       .from(jobsTable)
-      .where(eq(jobsTable.id, jobId));
+      .where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
     if (!job) {
       res.status(404).json({ error: "Job not found" });
       return;
@@ -464,7 +531,25 @@ router.post(
             "Failed to clean up stored KISS file after import error",
           ),
         );
+      if (err instanceof BomLockedByShippingError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
       throw err;
+    }
+
+    // Detailed-BOM absorption: when a job created from a (preliminary) won
+    // estimate receives a real KISS/CNC package, the estimate is now backed
+    // by detailed data. Re-importing replaces the job's BOM in place,
+    // preserving the job/customer/PO history — no new estimate is created —
+    // and the linked estimate's own BOM is synchronized so its pricing and
+    // quote reflect the detailed package.
+    if (job.estimateId != null) {
+      await absorbJobBomIntoEstimate(job.estimateId, parsed);
+      await db
+        .update(estimatesTable)
+        .set({ type: "detailed" })
+        .where(eq(estimatesTable.id, job.estimateId));
     }
 
     req.log.info(
@@ -476,10 +561,15 @@ router.post(
   },
 );
 
-router.patch("/bom/assemblies/:assemblyId", async (req, res): Promise<void> => {
+router.patch("/bom/assemblies/:assemblyId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const assemblyId = parseIntParam(req.params.assemblyId);
   if (assemblyId === null) {
     res.status(400).json({ error: "Invalid assembly id" });
+    return;
+  }
+  if (!(await verifyAssemblyOwnership(assemblyId, companyId))) {
+    res.status(404).json({ error: "Assembly not found" });
     return;
   }
   const parsed = UpdateBomAssemblyBody.safeParse(req.body);
@@ -498,19 +588,89 @@ router.patch("/bom/assemblies/:assemblyId", async (req, res): Promise<void> => {
   if (body.description !== undefined) updates.description = body.description;
   if (body.quantity !== undefined) updates.quantity = body.quantity;
   if (body.processingPath !== undefined) updates.processingPath = body.processingPath;
-  if (body.currentStage !== undefined) updates.currentStage = body.currentStage;
+  if (body.currentStage !== undefined) {
+    // Enforced stage state machine (Phase 6): only canonical pipeline stages
+    // are accepted, and "Shipped" is reachable only via shipment departure.
+    // A Shipped assembly is terminal: its stage cannot be edited directly.
+    const [current] = await db
+      .select({ currentStage: bomAssembliesTable.currentStage })
+      .from(bomAssembliesTable)
+      .where(eq(bomAssembliesTable.id, assemblyId));
+    if (
+      current &&
+      canonicalAssemblyStage(current.currentStage ?? "") === SHIPPED_STAGE &&
+      canonicalAssemblyStage(body.currentStage ?? "") !== SHIPPED_STAGE
+    ) {
+      res.status(409).json({
+        error:
+          "This assembly has shipped; its stage can no longer be edited directly. Shipping records are the source of truth for departed assemblies.",
+      });
+      return;
+    }
+    if (body.currentStage === null || body.currentStage === "") {
+      updates.currentStage = null;
+    } else {
+      const canonical = canonicalAssemblyStage(body.currentStage);
+      if (!canonical) {
+        res.status(400).json({
+          error: `Unknown stage "${body.currentStage}". Valid stages: ${ASSEMBLY_PROGRESS_ORDER.join(", ")}.`,
+        });
+        return;
+      }
+      if (canonical === SHIPPED_STAGE) {
+        res.status(409).json({
+          error:
+            "Assemblies are marked Shipped by departing a shipment (with a signed load confirmation), not by editing the stage directly.",
+        });
+        return;
+      }
+      updates.currentStage = canonical;
+      if (canonical === INSPECTED_STAGE) {
+        // Stamp inspection metadata when the assembly reaches Inspected.
+        const [existing] = await db
+          .select({ inspectedOn: bomAssembliesTable.inspectedOn })
+          .from(bomAssembliesTable)
+          .where(eq(bomAssembliesTable.id, assemblyId));
+        if (!existing?.inspectedOn) {
+          updates.inspectedOn = new Date().toISOString().slice(0, 10);
+          updates.inspector = req.auth!.user.name;
+        }
+      }
+    }
+  }
   if (body.onHold !== undefined) updates.onHold = body.onHold;
   if (body.notes !== undefined) updates.notes = body.notes;
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "No fields to update" });
     return;
   }
+  // When the stage is being changed, guard the write itself so a stale PATCH
+  // can never overwrite "Shipped" set by a concurrent shipment departure
+  // (the earlier pre-read check alone would be racy).
+  const stageGuard =
+    body.currentStage !== undefined
+      ? or(
+          isNull(bomAssembliesTable.currentStage),
+          ne(bomAssembliesTable.currentStage, SHIPPED_STAGE),
+        )
+      : undefined;
   const [updated] = await db
     .update(bomAssembliesTable)
     .set(updates)
-    .where(eq(bomAssembliesTable.id, assemblyId))
+    .where(and(eq(bomAssembliesTable.id, assemblyId), stageGuard))
     .returning();
   if (!updated) {
+    const [still] = await db
+      .select({ currentStage: bomAssembliesTable.currentStage })
+      .from(bomAssembliesTable)
+      .where(eq(bomAssembliesTable.id, assemblyId));
+    if (still && canonicalAssemblyStage(still.currentStage ?? "") === SHIPPED_STAGE) {
+      res.status(409).json({
+        error:
+          "This assembly has shipped; its stage can no longer be edited directly. Shipping records are the source of truth for departed assemblies.",
+      });
+      return;
+    }
     res.status(404).json({ error: "Assembly not found" });
     return;
   }
@@ -546,10 +706,15 @@ router.patch("/bom/assemblies/:assemblyId", async (req, res): Promise<void> => {
   });
 });
 
-router.patch("/bom/parts/:partId", async (req, res): Promise<void> => {
+router.patch("/bom/parts/:partId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const partId = parseIntParam(req.params.partId);
   if (partId === null) {
     res.status(400).json({ error: "Invalid part id" });
+    return;
+  }
+  if (!(await verifyPartOwnership(partId, companyId))) {
+    res.status(404).json({ error: "Part not found" });
     return;
   }
   const parsed = UpdateBomPartBody.safeParse(req.body);

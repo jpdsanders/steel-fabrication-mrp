@@ -23,11 +23,16 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import DocumentsCard from "@/components/jobs/DocumentsCard";
+import DocumentControl from "@/components/drawings/DocumentControl";
 import AssemblyTracking, { AssemblyStatusBadge } from "@/components/jobs/AssemblyTracking";
 import BomCard from "@/components/jobs/BomCard";
 import PurchaseOrdersCard from "@/components/jobs/PurchaseOrdersCard";
+import HeatSheetCard from "@/components/jobs/HeatSheetCard";
 import CustomerPicker from "@/components/CustomerPicker";
 import EmployeeMultiSelect from "@/components/EmployeeMultiSelect";
+import NestingCard from "@/components/jobs/NestingCard";
+import ShippingCard from "@/components/jobs/ShippingCard";
+import QcCard from "@/components/jobs/QcCard";
 
 /**
  * Click-to-edit text: shows the value (with a pencil affordance on hover),
@@ -399,6 +404,26 @@ export default function JobDetail() {
       </div>
 
       <BomCard jobId={jobId} />
+
+      <NestingCard jobId={jobId} />
+
+      <HeatSheetCard jobId={jobId} />
+
+      <QcCard
+        jobId={jobId}
+        assemblies={(job.bomAssemblies ?? []).flatMap((a) =>
+          a.id != null ? [{ ...a, id: a.id }] : [],
+        )}
+      />
+
+      <ShippingCard
+        jobId={jobId}
+        assemblies={(job.bomAssemblies ?? []).flatMap((a) =>
+          a.id != null ? [{ ...a, id: a.id }] : [],
+        )}
+      />
+
+      <DocumentControl jobId={jobId} />
     </div>
   );
 }

@@ -17,6 +17,21 @@ export interface PurchaseOrder {
   status: PurchaseOrderStatus;
   /** @nullable */
   reviewComment?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  vendorStatus?: string | null;
+  /** @nullable */
+  vendorExceptionJustification?: string | null;
+  /** Change-order revision number (0 = original issue) */
+  revision?: number;
+  /**
+     * Sum of extended line prices; null when no line is priced
+     * @nullable
+     */
+  totalAmount?: number | null;
   lineCount: number;
   totalPieces: number;
   createdAt: Date;

@@ -469,7 +469,6 @@ function AssemblyDetailPanel({
                     <TableHead className="text-xs">Stock Type</TableHead>
                     <TableHead className="text-xs">Piece Marks</TableHead>
                     <TableHead className="text-xs text-right">Qty</TableHead>
-                    <TableHead className="text-xs">Heat #</TableHead>
                     <TableHead className="text-xs w-10">
                       <span className="sr-only">Attachments</span>
                     </TableHead>
@@ -670,14 +669,12 @@ function PartEditRow({ part, jobId }: { part: BomPart; jobId: number }) {
   );
   const [partMark, setPartMark] = useState(part.partMark ?? "");
   const [qty, setQty] = useState(String(part.quantity));
-  const [heat, setHeat] = useState(part.heatNumber ?? "");
 
   useEffect(() => {
     setStockType([part.profileType, part.profileSize].filter(Boolean).join(" "));
     setPartMark(part.partMark ?? "");
     setQty(String(part.quantity));
-    setHeat(part.heatNumber ?? "");
-  }, [part.profileType, part.profileSize, part.partMark, part.quantity, part.heatNumber]);
+  }, [part.profileType, part.profileSize, part.partMark, part.quantity]);
 
   const save = (data: Parameters<typeof updatePart.mutate>[0]["data"]) => {
     if (part.id == null) return;
@@ -724,11 +721,8 @@ function PartEditRow({ part, jobId }: { part: BomPart; jobId: number }) {
     save({ quantity: n });
   };
 
-  const commitHeat = () => {
-    const v = heat.trim();
-    if (v === (part.heatNumber ?? "")) return;
-    save({ heatNumber: v === "" ? null : v });
-  };
+  // Heat numbers are captured relationally at PO receiving (Job Heat Sheet);
+  // the legacy free-text bom_parts.heatNumber is no longer edited here.
 
   const blurOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -766,17 +760,6 @@ function PartEditRow({ part, jobId }: { part: BomPart; jobId: number }) {
           inputMode="numeric"
           className="h-7 text-xs text-right w-16"
           data-testid={`input-part-qty-${part.id}`}
-        />
-      </TableCell>
-      <TableCell className="p-1.5">
-        <Input
-          value={heat}
-          onChange={(e) => setHeat(e.target.value)}
-          onBlur={commitHeat}
-          onKeyDown={blurOnEnter}
-          placeholder="Heat #"
-          className="h-7 text-xs font-mono min-w-[80px]"
-          data-testid={`input-part-heat-${part.id}`}
         />
       </TableCell>
       <TableCell className="p-1.5 text-center">

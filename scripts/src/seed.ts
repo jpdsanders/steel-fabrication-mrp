@@ -10,6 +10,7 @@ import {
   customersTable,
   contactsTable,
   customerAddressesTable,
+  companiesTable,
 } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 
@@ -33,6 +34,17 @@ function hoursAgo(hours: number): Date {
 }
 
 async function main() {
+  // Seed data belongs to S&S Steel — look it up (must already exist from seed:companies)
+  const [ssSteelCo] = await db
+    .select({ id: companiesTable.id })
+    .from(companiesTable)
+    .where(eq(companiesTable.slug, "ss-steel"))
+    .limit(1);
+  if (!ssSteelCo) {
+    throw new Error("S&S Steel company not found. Run `pnpm --filter @workspace/scripts run seed:companies` first.");
+  }
+  const companyId = ssSteelCo.id;
+
   console.log("Clearing existing data...");
   await db.delete(timeEntriesTable);
   await db.delete(stagesTable);
@@ -54,17 +66,17 @@ async function main() {
   ];
   await db
     .insert(stageLibraryTable)
-    .values(libraryStages.map((name) => ({ name })));
+    .values(libraryStages.map((name) => ({ name, companyId })));
 
   console.log("Seeding employees...");
   const employees = await db
     .insert(employeesTable)
     .values([
-      { name: "Marcus Reed", employeeCode: "W-101", active: true },
-      { name: "Diana Cruz", employeeCode: "W-102", active: true },
-      { name: "Sam Okafor", employeeCode: "W-103", active: true },
-      { name: "Elena Petrov", employeeCode: "W-104", active: true },
-      { name: "Tom Bradley", employeeCode: "W-105", active: false },
+      { name: "Marcus Reed", employeeCode: "W-101", active: true, companyId },
+      { name: "Diana Cruz", employeeCode: "W-102", active: true, companyId },
+      { name: "Sam Okafor", employeeCode: "W-103", active: true, companyId },
+      { name: "Elena Petrov", employeeCode: "W-104", active: true, companyId },
+      { name: "Tom Bradley", employeeCode: "W-105", active: false, companyId },
     ])
     .returning();
 
@@ -239,6 +251,7 @@ async function main() {
     const [customer] = await db
       .insert(customersTable)
       .values({
+        companyId,
         name: spec.name,
         phone: spec.phone,
         fax: spec.fax,
@@ -282,6 +295,7 @@ async function main() {
     .insert(estimatesTable)
     .values([
       {
+        companyId,
         bidNumber: "B-1001",
         name: "Warehouse Mezzanine Frame",
         customer: "Ironclad Logistics",
@@ -293,6 +307,7 @@ async function main() {
         notes: "Won after revised pricing. Galvanized finish required.",
       },
       {
+        companyId,
         bidNumber: "B-1002",
         name: "Stair & Handrail Package",
         customer: "Highrise Builders",
@@ -304,6 +319,7 @@ async function main() {
         notes: "Repeat customer.",
       },
       {
+        companyId,
         bidNumber: "B-1003",
         name: "Storage Rack System",
         customer: "Grainway Mills",
@@ -315,6 +331,7 @@ async function main() {
         notes: "Awaiting customer decision. Competing with two other shops.",
       },
       {
+        companyId,
         bidNumber: "B-1004",
         name: "Catwalk & Access Platforms",
         customer: "Summit HVAC",
@@ -326,6 +343,7 @@ async function main() {
         notes: "Takeoff in progress from customer drawings.",
       },
       {
+        companyId,
         bidNumber: "B-1005",
         name: "Equipment Skid Frames",
         customer: "Delta Processing",
@@ -420,6 +438,7 @@ async function main() {
     const [job] = await db
       .insert(jobsTable)
       .values({
+        companyId,
         jobNumber: spec.jobNumber,
         name: spec.name,
         customer: spec.customer,

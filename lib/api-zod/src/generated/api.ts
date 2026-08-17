@@ -26,12 +26,19 @@ export const ListEstimatesQueryParams = zod.object({
   "search": zod.coerce.string().optional()
 })
 
+export const listEstimatesResponseMarginPercentMin = 0;
+export const listEstimatesResponseMarginPercentMax = 100;
+
+
 export const ListEstimatesResponseItem = zod.object({
   "id": zod.number(),
   "bidNumber": zod.string(),
   "name": zod.string(),
   "customer": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'won', 'lost']),
+  "type": zod.enum(['preliminary', 'detailed']).describe('Internal values only — user-facing labels come from a swappable display constant (see OPEN_QUESTIONS.md).'),
+  "marginPercent": zod.number().min(listEstimatesResponseMarginPercentMin).max(listEstimatesResponseMarginPercentMax),
+  "quoteFormat": zod.enum(['itemized', 'summary']),
   "estimatedHours": zod.number(),
   "amount": zod.number().nullish(),
   "bidDate": zod.string().nullish().describe('Calendar date (YYYY-MM-DD)'),
@@ -51,12 +58,17 @@ export const ListEstimatesResponse = zod.array(ListEstimatesResponseItem)
  */
 
 
+export const createEstimateBodyMarginPercentMin = 0;
+export const createEstimateBodyMarginPercentMax = 100;
 
 
 export const CreateEstimateBody = zod.object({
   "name": zod.string().min(1),
   "customer": zod.string().min(1),
   "status": zod.enum(['draft', 'submitted', 'lost']).optional(),
+  "type": zod.enum(['preliminary', 'detailed']).optional(),
+  "marginPercent": zod.number().min(createEstimateBodyMarginPercentMin).max(createEstimateBodyMarginPercentMax).optional(),
+  "quoteFormat": zod.enum(['itemized', 'summary']).optional(),
   "estimatedHours": zod.number().optional(),
   "amount": zod.number().nullish(),
   "bidDate": zod.string().nullish(),
@@ -64,12 +76,19 @@ export const CreateEstimateBody = zod.object({
   "notes": zod.string().nullish()
 })
 
+export const createEstimateResponseMarginPercentMin = 0;
+export const createEstimateResponseMarginPercentMax = 100;
+
+
 export const CreateEstimateResponse = zod.object({
   "id": zod.number(),
   "bidNumber": zod.string(),
   "name": zod.string(),
   "customer": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'won', 'lost']),
+  "type": zod.enum(['preliminary', 'detailed']).describe('Internal values only — user-facing labels come from a swappable display constant (see OPEN_QUESTIONS.md).'),
+  "marginPercent": zod.number().min(createEstimateResponseMarginPercentMin).max(createEstimateResponseMarginPercentMax),
+  "quoteFormat": zod.enum(['itemized', 'summary']),
   "estimatedHours": zod.number(),
   "amount": zod.number().nullish(),
   "bidDate": zod.string().nullish().describe('Calendar date (YYYY-MM-DD)'),
@@ -89,12 +108,19 @@ export const GetEstimateParams = zod.object({
   "estimateId": zod.coerce.number()
 })
 
+export const getEstimateResponseMarginPercentMin = 0;
+export const getEstimateResponseMarginPercentMax = 100;
+
+
 export const GetEstimateResponse = zod.object({
   "id": zod.number(),
   "bidNumber": zod.string(),
   "name": zod.string(),
   "customer": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'won', 'lost']),
+  "type": zod.enum(['preliminary', 'detailed']).describe('Internal values only — user-facing labels come from a swappable display constant (see OPEN_QUESTIONS.md).'),
+  "marginPercent": zod.number().min(getEstimateResponseMarginPercentMin).max(getEstimateResponseMarginPercentMax),
+  "quoteFormat": zod.enum(['itemized', 'summary']),
   "estimatedHours": zod.number(),
   "amount": zod.number().nullish(),
   "bidDate": zod.string().nullish().describe('Calendar date (YYYY-MM-DD)'),
@@ -116,13 +142,17 @@ export const UpdateEstimateParams = zod.object({
 })
 
 
-
+export const updateEstimateBodyMarginPercentMin = 0;
+export const updateEstimateBodyMarginPercentMax = 100;
 
 
 export const UpdateEstimateBody = zod.object({
   "name": zod.string().min(1).optional(),
   "customer": zod.string().min(1).optional(),
   "status": zod.enum(['draft', 'submitted', 'lost']).optional(),
+  "type": zod.enum(['preliminary', 'detailed']).optional(),
+  "marginPercent": zod.number().min(updateEstimateBodyMarginPercentMin).max(updateEstimateBodyMarginPercentMax).optional(),
+  "quoteFormat": zod.enum(['itemized', 'summary']).optional(),
   "estimatedHours": zod.number().optional(),
   "amount": zod.number().nullish(),
   "bidDate": zod.string().nullish(),
@@ -130,12 +160,19 @@ export const UpdateEstimateBody = zod.object({
   "notes": zod.string().nullish()
 })
 
+export const updateEstimateResponseMarginPercentMin = 0;
+export const updateEstimateResponseMarginPercentMax = 100;
+
+
 export const UpdateEstimateResponse = zod.object({
   "id": zod.number(),
   "bidNumber": zod.string(),
   "name": zod.string(),
   "customer": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'won', 'lost']),
+  "type": zod.enum(['preliminary', 'detailed']).describe('Internal values only — user-facing labels come from a swappable display constant (see OPEN_QUESTIONS.md).'),
+  "marginPercent": zod.number().min(updateEstimateResponseMarginPercentMin).max(updateEstimateResponseMarginPercentMax),
+  "quoteFormat": zod.enum(['itemized', 'summary']),
   "estimatedHours": zod.number(),
   "amount": zod.number().nullish(),
   "bidDate": zod.string().nullish().describe('Calendar date (YYYY-MM-DD)'),
@@ -168,8 +205,6 @@ export const ConvertEstimateToJobParams = zod.object({
 })
 
 
-
-
 export const ConvertEstimateToJobBody = zod.object({
   "dueDate": zod.string().nullish(),
   "stages": zod.array(zod.object({
@@ -177,6 +212,7 @@ export const ConvertEstimateToJobBody = zod.object({
   "estimatedHours": zod.number().optional()
 })).optional().describe('Custom routing. If omitted, the default workflow is applied.')
 })
+
 
 export const ConvertEstimateToJobResponse = zod.object({
   "id": zod.number(),
@@ -214,7 +250,7 @@ export const ConvertEstimateToJobResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -227,7 +263,7 @@ export const ConvertEstimateToJobResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -280,8 +316,6 @@ export const ListJobsResponse = zod.array(ListJobsResponseItem)
  */
 
 
-
-
 export const CreateJobBody = zod.object({
   "name": zod.string().min(1),
   "customerId": zod.number(),
@@ -294,6 +328,7 @@ export const CreateJobBody = zod.object({
   "estimatedHours": zod.number().optional()
 })).optional().describe('Custom routing. If omitted, the default workflow is applied.')
 })
+
 
 export const CreateJobResponse = zod.object({
   "id": zod.number(),
@@ -331,7 +366,7 @@ export const CreateJobResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -344,7 +379,7 @@ export const CreateJobResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -365,6 +400,7 @@ export const CreateJobResponse = zod.object({
 export const GetJobParams = zod.object({
   "jobId": zod.coerce.number()
 })
+
 
 export const GetJobResponse = zod.object({
   "id": zod.number(),
@@ -402,7 +438,7 @@ export const GetJobResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -415,7 +451,7 @@ export const GetJobResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -438,9 +474,6 @@ export const UpdateJobParams = zod.object({
 })
 
 
-
-
-
 export const UpdateJobBody = zod.object({
   "jobNumber": zod.string().min(1).optional(),
   "name": zod.string().min(1).optional(),
@@ -451,6 +484,7 @@ export const UpdateJobBody = zod.object({
   "notes": zod.string().nullish(),
   "assignedEmployeeIds": zod.array(zod.number()).optional().describe('Full replacement list of assigned employee ids.')
 })
+
 
 export const UpdateJobResponse = zod.object({
   "id": zod.number(),
@@ -488,7 +522,7 @@ export const UpdateJobResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -501,7 +535,7 @@ export const UpdateJobResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -533,6 +567,7 @@ export const DeleteJobResponse = zod.void()
 export const AdvanceJobStageParams = zod.object({
   "jobId": zod.coerce.number()
 })
+
 
 export const AdvanceJobStageResponse = zod.object({
   "id": zod.number(),
@@ -570,7 +605,7 @@ export const AdvanceJobStageResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -583,7 +618,7 @@ export const AdvanceJobStageResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -606,13 +641,12 @@ export const AddJobStageParams = zod.object({
 })
 
 
-
-
 export const AddJobStageBody = zod.object({
   "name": zod.string().min(1),
   "estimatedHours": zod.number().optional(),
   "orderIndex": zod.number().optional()
 })
+
 
 export const AddJobStageResponse = zod.object({
   "id": zod.number(),
@@ -650,7 +684,7 @@ export const AddJobStageResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -663,7 +697,7 @@ export const AddJobStageResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -687,11 +721,10 @@ export const ReorderJobStagesParams = zod.object({
 })
 
 
-
-
 export const ReorderJobStagesBody = zod.object({
   "stageIds": zod.array(zod.number()).min(1)
 })
+
 
 export const ReorderJobStagesResponse = zod.object({
   "id": zod.number(),
@@ -729,7 +762,7 @@ export const ReorderJobStagesResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -742,7 +775,7 @@ export const ReorderJobStagesResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -881,8 +914,6 @@ export const UpdateBomAssemblyParams = zod.object({
 })
 
 
-
-
 export const UpdateBomAssemblyBody = zod.object({
   "description": zod.string().nullish(),
   "quantity": zod.number().min(1).optional(),
@@ -892,10 +923,11 @@ export const UpdateBomAssemblyBody = zod.object({
   "notes": zod.string().nullish()
 })
 
+
 export const UpdateBomAssemblyResponse = zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -908,7 +940,7 @@ export const UpdateBomAssemblyResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -928,8 +960,6 @@ export const UpdateBomPartParams = zod.object({
 })
 
 
-
-
 export const UpdateBomPartBody = zod.object({
   "partMark": zod.string().nullish(),
   "quantity": zod.number().min(1).optional(),
@@ -941,10 +971,11 @@ export const UpdateBomPartBody = zod.object({
   "heatNumber": zod.string().nullish()
 })
 
+
 export const UpdateBomPartResponse = zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -1008,6 +1039,7 @@ export const ParseBomFileBody = zod.object({
   "file": zod.instanceof(File)
 })
 
+
 export const ParseBomFileResponse = zod.object({
   "jobRef": zod.string().nullish(),
   "jobName": zod.string().nullish(),
@@ -1017,7 +1049,7 @@ export const ParseBomFileResponse = zod.object({
   "assemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -1030,7 +1062,7 @@ export const ParseBomFileResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -1056,6 +1088,7 @@ export const GetJobBomParams = zod.object({
   "jobId": zod.coerce.number()
 })
 
+
 export const GetJobBomResponse = zod.object({
   "jobRef": zod.string().nullish(),
   "jobName": zod.string().nullish(),
@@ -1065,7 +1098,7 @@ export const GetJobBomResponse = zod.object({
   "assemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -1078,7 +1111,7 @@ export const GetJobBomResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -1109,6 +1142,7 @@ export const UploadJobBomBody = zod.object({
   "file": zod.instanceof(File)
 })
 
+
 export const UploadJobBomResponse = zod.object({
   "jobRef": zod.string().nullish(),
   "jobName": zod.string().nullish(),
@@ -1118,7 +1152,7 @@ export const UploadJobBomResponse = zod.object({
   "assemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -1131,7 +1165,7 @@ export const UploadJobBomResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -1159,14 +1193,13 @@ export const UpdateStageParams = zod.object({
 })
 
 
-
-
 export const UpdateStageBody = zod.object({
   "name": zod.string().min(1).optional(),
   "status": zod.enum(['not_started', 'in_progress', 'complete']).optional(),
   "estimatedHours": zod.number().optional(),
   "orderIndex": zod.number().optional()
 })
+
 
 export const UpdateStageResponse = zod.object({
   "id": zod.number(),
@@ -1204,7 +1237,7 @@ export const UpdateStageResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -1217,7 +1250,7 @@ export const UpdateStageResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -1238,6 +1271,7 @@ export const UpdateStageResponse = zod.object({
 export const DeleteStageParams = zod.object({
   "stageId": zod.coerce.number()
 })
+
 
 export const DeleteStageResponse = zod.object({
   "id": zod.number(),
@@ -1275,7 +1309,7 @@ export const DeleteStageResponse = zod.object({
   "bomAssemblies": zod.array(zod.object({
   "id": zod.number().optional(),
   "mark": zod.string(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "description": zod.string().nullish(),
   "finish": zod.string().nullish(),
   "processingPath": zod.string().nullish(),
@@ -1288,7 +1322,7 @@ export const DeleteStageResponse = zod.object({
   "parts": zod.array(zod.object({
   "id": zod.number().optional(),
   "partMark": zod.string().nullish(),
-  "quantity": zod.number(),
+  "quantity": zod.number().min(1),
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
@@ -1317,7 +1351,6 @@ export const ListStageLibraryResponse = zod.array(ListStageLibraryResponseItem)
 /**
  * @summary Add a stage template to the library
  */
-
 
 
 export const CreateStageLibraryItemBody = zod.object({
@@ -1359,7 +1392,6 @@ export const ListProcessingPathOptionsResponse = zod.array(ListProcessingPathOpt
  */
 
 
-
 export const CreateProcessingPathOptionBody = zod.object({
   "name": zod.string().min(1)
 })
@@ -1394,7 +1426,6 @@ export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
  */
 
 
-
 export const CreateEmployeeBody = zod.object({
   "name": zod.string().min(1),
   "employeeCode": zod.string().nullish(),
@@ -1418,8 +1449,6 @@ export const CreateEmployeeResponse = zod.object({
 export const UpdateEmployeeParams = zod.object({
   "employeeId": zod.coerce.number()
 })
-
-
 
 
 export const UpdateEmployeeBody = zod.object({
@@ -1714,7 +1743,6 @@ export const ListCustomersResponse = zod.array(ListCustomersResponseItem)
  */
 
 
-
 export const CreateCustomerBody = zod.object({
   "name": zod.string().min(1),
   "phone": zod.string().nullish(),
@@ -1819,8 +1847,6 @@ export const UpdateCustomerParams = zod.object({
 })
 
 
-
-
 export const UpdateCustomerBody = zod.object({
   "name": zod.string().min(1).optional(),
   "phone": zod.string().nullish(),
@@ -1870,8 +1896,6 @@ export const CreateContactParams = zod.object({
 })
 
 
-
-
 export const CreateContactBody = zod.object({
   "name": zod.string().min(1),
   "title": zod.string().nullish(),
@@ -1902,8 +1926,6 @@ export const CreateContactResponse = zod.object({
 export const UpdateContactParams = zod.object({
   "contactId": zod.coerce.number()
 })
-
-
 
 
 export const UpdateContactBody = zod.object({
@@ -1948,9 +1970,6 @@ export const CreateCustomerAddressParams = zod.object({
 })
 
 
-
-
-
 export const CreateCustomerAddressBody = zod.object({
   "label": zod.string().min(1),
   "address": zod.string().min(1)
@@ -1971,9 +1990,6 @@ export const CreateCustomerAddressResponse = zod.object({
 export const UpdateCustomerAddressParams = zod.object({
   "addressId": zod.coerce.number()
 })
-
-
-
 
 
 export const UpdateCustomerAddressBody = zod.object({
@@ -2001,6 +2017,583 @@ export const DeleteCustomerAddressResponse = zod.void()
 
 
 /**
+ * Open (sent/approved) PO lines with vendor promise date and a computed Overdue / Due-soon / OK status.
+ * @summary Due-in tracking for open PO lines
+ */
+export const ListDueInLinesResponseItem = zod.object({
+  "poId": zod.number(),
+  "poNumber": zod.string(),
+  "poStatus": zod.enum(['draft', 'sent', 'approved', 'rejected']),
+  "jobId": zod.number(),
+  "jobNumber": zod.string(),
+  "jobName": zod.string().optional(),
+  "vendorName": zod.string().nullish(),
+  "lineId": zod.number(),
+  "description": zod.string().optional(),
+  "pieces": zod.number().describe('Ordered quantity'),
+  "promiseDate": zod.string().nullish(),
+  "dueStatus": zod.enum(['overdue', 'due_soon', 'ok', 'no_date']),
+  "receivedPieces": zod.number().describe('Total pieces received so far'),
+  "remainingPieces": zod.number().describe('Ordered minus received; negative means over-receipt'),
+  "receiptStatus": zod.enum(['not_received', 'partial', 'complete', 'over'])
+})
+export const ListDueInLinesResponse = zod.array(ListDueInLinesResponseItem)
+
+
+/**
+ * @summary List a purchase order's change-order revisions
+ */
+export const ListPurchaseOrderRevisionsParams = zod.object({
+  "poId": zod.coerce.number()
+})
+
+export const ListPurchaseOrderRevisionsResponseItem = zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "note": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdByName": zod.string().nullish(),
+  "snapshot": zod.unknown(),
+  "createdAt": zod.coerce.date()
+})
+export const ListPurchaseOrderRevisionsResponse = zod.array(ListPurchaseOrderRevisionsResponseItem)
+
+
+/**
+ * @summary List vendors (Approved Vendor List)
+ */
+export const ListVendorsQueryParams = zod.object({
+  "status": zod.enum(['conditional', 'approved', 'suspended', 'disqualified']).optional(),
+  "search": zod.coerce.string().optional()
+})
+
+export const ListVendorsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "categoryId": zod.number().nullish(),
+  "categoryName": zod.string().nullish(),
+  "status": zod.enum(['conditional', 'approved', 'suspended', 'disqualified']),
+  "scopeOfApproval": zod.string().nullish(),
+  "coiExpiration": zod.string().nullish().describe('YYYY-MM-DD'),
+  "coiLapsed": zod.boolean().describe('True when coiExpiration is in the past'),
+  "contactName": zod.string().nullish(),
+  "contactEmail": zod.string().nullish(),
+  "contactPhone": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListVendorsResponse = zod.array(ListVendorsResponseItem)
+
+
+/**
+ * @summary Create a vendor
+ */
+
+
+export const CreateVendorBody = zod.object({
+  "name": zod.string().min(1),
+  "categoryId": zod.number().nullish(),
+  "status": zod.enum(['conditional', 'approved', 'suspended', 'disqualified']).optional(),
+  "scopeOfApproval": zod.string().nullish(),
+  "coiExpiration": zod.string().nullish(),
+  "contactName": zod.string().nullish(),
+  "contactEmail": zod.string().nullish(),
+  "contactPhone": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateVendorResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "categoryId": zod.number().nullish(),
+  "categoryName": zod.string().nullish(),
+  "status": zod.enum(['conditional', 'approved', 'suspended', 'disqualified']),
+  "scopeOfApproval": zod.string().nullish(),
+  "coiExpiration": zod.string().nullish().describe('YYYY-MM-DD'),
+  "coiLapsed": zod.boolean().describe('True when coiExpiration is in the past'),
+  "contactName": zod.string().nullish(),
+  "contactEmail": zod.string().nullish(),
+  "contactPhone": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a vendor
+ */
+export const UpdateVendorParams = zod.object({
+  "vendorId": zod.coerce.number()
+})
+
+
+export const UpdateVendorBody = zod.object({
+  "name": zod.string().min(1),
+  "categoryId": zod.number().nullish(),
+  "status": zod.enum(['conditional', 'approved', 'suspended', 'disqualified']).optional(),
+  "scopeOfApproval": zod.string().nullish(),
+  "coiExpiration": zod.string().nullish(),
+  "contactName": zod.string().nullish(),
+  "contactEmail": zod.string().nullish(),
+  "contactPhone": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateVendorResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "categoryId": zod.number().nullish(),
+  "categoryName": zod.string().nullish(),
+  "status": zod.enum(['conditional', 'approved', 'suspended', 'disqualified']),
+  "scopeOfApproval": zod.string().nullish(),
+  "coiExpiration": zod.string().nullish().describe('YYYY-MM-DD'),
+  "coiLapsed": zod.boolean().describe('True when coiExpiration is in the past'),
+  "contactName": zod.string().nullish(),
+  "contactEmail": zod.string().nullish(),
+  "contactPhone": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Vendors referenced by purchase orders cannot be deleted.
+ * @summary Delete a vendor
+ */
+export const DeleteVendorParams = zod.object({
+  "vendorId": zod.coerce.number()
+})
+
+export const DeleteVendorResponse = zod.void()
+
+
+/**
+ * @summary List vendor categories
+ */
+export const ListVendorCategoriesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "sortIndex": zod.number()
+})
+export const ListVendorCategoriesResponse = zod.array(ListVendorCategoriesResponseItem)
+
+
+/**
+ * @summary Create a vendor category
+ */
+
+
+export const CreateVendorCategoryBody = zod.object({
+  "name": zod.string().min(1),
+  "sortIndex": zod.number().optional()
+})
+
+export const CreateVendorCategoryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "sortIndex": zod.number()
+})
+
+
+/**
+ * @summary List standard stock lengths for a vendor
+ */
+export const ListVendorStockLengthsParams = zod.object({
+  "vendorId": zod.coerce.number()
+})
+
+
+export const ListVendorStockLengthsResponseItem = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "profileType": zod.string().nullish().describe('Profile type this length applies to; null = all profiles'),
+  "lengthIn": zod.number().min(1).describe('Usable stock length in inches'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListVendorStockLengthsResponse = zod.array(ListVendorStockLengthsResponseItem)
+
+
+/**
+ * @summary Add a standard stock length for a vendor
+ */
+export const CreateVendorStockLengthParams = zod.object({
+  "vendorId": zod.coerce.number()
+})
+
+
+export const CreateVendorStockLengthBody = zod.object({
+  "profileType": zod.string().nullish(),
+  "lengthIn": zod.number().min(1),
+  "notes": zod.string().nullish()
+})
+
+
+export const CreateVendorStockLengthResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "profileType": zod.string().nullish().describe('Profile type this length applies to; null = all profiles'),
+  "lengthIn": zod.number().min(1).describe('Usable stock length in inches'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove a standard stock length from a vendor
+ */
+export const DeleteVendorStockLengthParams = zod.object({
+  "vendorId": zod.coerce.number(),
+  "stockLengthId": zod.coerce.number()
+})
+
+export const DeleteVendorStockLengthResponse = zod.void()
+
+
+/**
+ * Groups BOM parts by (profileType, profileSize, grade) and runs the
+ * cutting-stock engine against all vendor stock lengths on file. Returns
+ * ranked options (by waste%) per group. Nothing is persisted — call
+ * acceptNestingOption to save the chosen plan.
+ * @summary Compute nesting options for a job's BOM
+ */
+export const ComputeNestingParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const computeNestingBodyKerfInDefault = 0.25;
+export const computeNestingBodyKerfInMin = 0;
+
+
+export const ComputeNestingBody = zod.object({
+  "kerfIn": zod.number().min(computeNestingBodyKerfInMin).default(computeNestingBodyKerfInDefault).describe('Saw blade kerf in inches (default 0.25)')
+})
+
+export const ComputeNestingResponse = zod.object({
+  "kerfIn": zod.number(),
+  "groups": zod.array(zod.object({
+  "profileType": zod.string(),
+  "profileSize": zod.string(),
+  "grade": zod.string(),
+  "options": zod.array(zod.object({
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "stockLengthIn": zod.number(),
+  "isComplete": zod.boolean().describe('True when all demanded pieces fit on this stock length. Incomplete options must not be accepted.'),
+  "missingParts": zod.array(zod.object({
+  "partId": zod.number(),
+  "lengthIn": zod.number(),
+  "label": zod.string(),
+  "reason": zod.string()
+})).describe('Parts that cannot fit on this stock length (empty when isComplete=true)'),
+  "bars": zod.array(zod.object({
+  "source": zod.enum(['stock', 'remnant']),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "stockLengthIn": zod.number(),
+  "wasteIn": zod.number(),
+  "remnantRef": zod.string().nullish(),
+  "cuts": zod.array(zod.object({
+  "partId": zod.number().nullish(),
+  "lengthIn": zod.number(),
+  "quantity": zod.number(),
+  "label": zod.string()
+}))
+})),
+  "totalStockIn": zod.number(),
+  "totalUsedIn": zod.number(),
+  "totalWasteIn": zod.number(),
+  "wastePercent": zod.number()
+})).describe('Options ranked by waste% ascending'),
+  "unnestable": zod.array(zod.object({
+  "partId": zod.number(),
+  "lengthIn": zod.number(),
+  "label": zod.string(),
+  "reason": zod.string()
+}))
+}))
+})
+
+
+/**
+ * @summary Get the accepted nesting plan for a job
+ */
+export const GetNestingPlanParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const GetNestingPlanResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "status": zod.enum(['draft', 'accepted']),
+  "kerfIn": zod.number(),
+  "groups": zod.array(zod.object({
+  "profileType": zod.string(),
+  "profileSize": zod.string(),
+  "grade": zod.string(),
+  "bars": zod.array(zod.object({
+  "source": zod.enum(['stock', 'remnant']),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "stockLengthIn": zod.number(),
+  "wasteIn": zod.number(),
+  "remnantRef": zod.string().nullish(),
+  "cuts": zod.array(zod.object({
+  "partId": zod.number().nullish(),
+  "lengthIn": zod.number(),
+  "quantity": zod.number(),
+  "label": zod.string()
+}))
+})),
+  "totalStockIn": zod.number(),
+  "totalWasteIn": zod.number(),
+  "wastePercent": zod.number()
+})),
+  "createdAt": zod.coerce.date(),
+  "acceptedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Accept a nesting option and save it as the job's plan
+ */
+export const AcceptNestingOptionParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const acceptNestingOptionBodyKerfInMin = 0;
+
+
+export const AcceptNestingOptionBody = zod.object({
+  "kerfIn": zod.number().min(acceptNestingOptionBodyKerfInMin),
+  "groups": zod.array(zod.object({
+  "profileType": zod.string(),
+  "profileSize": zod.string(),
+  "grade": zod.string(),
+  "vendorId": zod.number().describe('Vendor whose stock length was selected — stable identity for the chosen option'),
+  "stockLengthIn": zod.number().describe('Exact stock length in inches of the selected option — stable identity alongside vendorId')
+}))
+})
+
+export const AcceptNestingOptionResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "status": zod.enum(['draft', 'accepted']),
+  "kerfIn": zod.number(),
+  "groups": zod.array(zod.object({
+  "profileType": zod.string(),
+  "profileSize": zod.string(),
+  "grade": zod.string(),
+  "bars": zod.array(zod.object({
+  "source": zod.enum(['stock', 'remnant']),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "stockLengthIn": zod.number(),
+  "wasteIn": zod.number(),
+  "remnantRef": zod.string().nullish(),
+  "cuts": zod.array(zod.object({
+  "partId": zod.number().nullish(),
+  "lengthIn": zod.number(),
+  "quantity": zod.number(),
+  "label": zod.string()
+}))
+})),
+  "totalStockIn": zod.number(),
+  "totalWasteIn": zod.number(),
+  "wastePercent": zod.number()
+})),
+  "createdAt": zod.coerce.date(),
+  "acceptedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Delete the accepted nesting plan for a job (revert to draft)
+ */
+export const DeleteNestingPlanParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const DeleteNestingPlanResponse = zod.void()
+
+
+/**
+ * @summary Get the printable cut list for the accepted nesting plan
+ */
+export const GetNestingCutListParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const GetNestingCutListResponse = zod.object({
+  "planId": zod.number(),
+  "jobId": zod.number(),
+  "kerfIn": zod.number(),
+  "groups": zod.array(zod.object({
+  "profileType": zod.string(),
+  "profileSize": zod.string(),
+  "grade": zod.string(),
+  "bars": zod.array(zod.object({
+  "barIndex": zod.number(),
+  "source": zod.enum(['stock', 'remnant']),
+  "vendorName": zod.string().nullish(),
+  "stockLengthIn": zod.number(),
+  "wasteIn": zod.number(),
+  "wastePercent": zod.number(),
+  "remnantRef": zod.string().nullish(),
+  "cuts": zod.array(zod.object({
+  "partId": zod.number().nullish(),
+  "lengthIn": zod.number(),
+  "quantity": zod.number(),
+  "label": zod.string()
+}))
+})),
+  "totalBars": zod.number(),
+  "totalStockIn": zod.number(),
+  "totalWasteIn": zod.number(),
+  "wastePercent": zod.number()
+}))
+})
+
+
+/**
+ * @summary Rename a vendor category
+ */
+export const UpdateVendorCategoryParams = zod.object({
+  "categoryId": zod.coerce.number()
+})
+
+
+export const UpdateVendorCategoryBody = zod.object({
+  "name": zod.string().min(1),
+  "sortIndex": zod.number().optional()
+})
+
+export const UpdateVendorCategoryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "sortIndex": zod.number()
+})
+
+
+/**
+ * @summary Delete a vendor category
+ */
+export const DeleteVendorCategoryParams = zod.object({
+  "categoryId": zod.coerce.number()
+})
+
+export const DeleteVendorCategoryResponse = zod.void()
+
+
+/**
+ * @summary List the company's quality clause library
+ */
+export const ListQualityClausesResponseItem = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean()
+})
+export const ListQualityClausesResponse = zod.array(ListQualityClausesResponseItem)
+
+
+/**
+ * @summary Create a quality clause
+ */
+
+
+export const CreateQualityClauseBody = zod.object({
+  "code": zod.string().min(1),
+  "title": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "active": zod.boolean().optional()
+})
+
+export const CreateQualityClauseResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary Update a quality clause
+ */
+export const UpdateQualityClauseParams = zod.object({
+  "clauseId": zod.coerce.number()
+})
+
+
+export const UpdateQualityClauseBody = zod.object({
+  "code": zod.string().min(1),
+  "title": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "active": zod.boolean().optional()
+})
+
+export const UpdateQualityClauseResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean()
+})
+
+
+/**
+ * Clauses referenced by purchase orders should be deactivated instead; delete removes them from the library entirely.
+ * @summary Delete a quality clause
+ */
+export const DeleteQualityClauseParams = zod.object({
+  "clauseId": zod.coerce.number()
+})
+
+export const DeleteQualityClauseResponse = zod.void()
+
+
+/**
+ * Returns the per-company threshold tiers, seeding editable defaults ($0 auto-approve, $2,500 and $10,000 approval tiers) on first access.
+ * @summary Get the company's PO approval-threshold matrix
+ */
+export const ListApprovalThresholdsResponseItem = zod.object({
+  "id": zod.number(),
+  "minTotal": zod.number(),
+  "label": zod.string(),
+  "requiredRole": zod.string().nullish()
+})
+export const ListApprovalThresholdsResponse = zod.array(ListApprovalThresholdsResponseItem)
+
+
+/**
+ * @summary Replace the company's PO approval-threshold matrix
+ */
+export const replaceApprovalThresholdsBodyTiersItemMinTotalMin = 0;
+
+
+export const ReplaceApprovalThresholdsBody = zod.object({
+  "tiers": zod.array(zod.object({
+  "minTotal": zod.number().min(replaceApprovalThresholdsBodyTiersItemMinTotalMin),
+  "label": zod.string().min(1),
+  "requiredRole": zod.string().nullish()
+}))
+})
+
+export const ReplaceApprovalThresholdsResponseItem = zod.object({
+  "id": zod.number(),
+  "minTotal": zod.number(),
+  "label": zod.string(),
+  "requiredRole": zod.string().nullish()
+})
+export const ReplaceApprovalThresholdsResponse = zod.array(ReplaceApprovalThresholdsResponseItem)
+
+
+/**
  * List all purchase orders, optionally filtered by status or search term.
  * @summary List purchase orders
  */
@@ -2018,6 +2611,12 @@ export const ListPurchaseOrdersResponseItem = zod.object({
   "customer": zod.string(),
   "status": zod.enum(['draft', 'sent', 'approved', 'rejected']),
   "reviewComment": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "vendorStatus": zod.string().nullish(),
+  "vendorExceptionJustification": zod.string().nullish(),
+  "revision": zod.number().optional().describe('Change-order revision number (0 = original issue)'),
+  "totalAmount": zod.number().nullish().describe('Sum of extended line prices; null when no line is priced'),
   "lineCount": zod.number(),
   "totalPieces": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -2042,6 +2641,12 @@ export const ListJobPurchaseOrdersResponseItem = zod.object({
   "customer": zod.string(),
   "status": zod.enum(['draft', 'sent', 'approved', 'rejected']),
   "reviewComment": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "vendorStatus": zod.string().nullish(),
+  "vendorExceptionJustification": zod.string().nullish(),
+  "revision": zod.number().optional().describe('Change-order revision number (0 = original issue)'),
+  "totalAmount": zod.number().nullish().describe('Sum of extended line prices; null when no line is priced'),
   "lineCount": zod.number(),
   "totalPieces": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -2059,15 +2664,22 @@ export const CreatePurchaseOrderParams = zod.object({
 })
 
 
+export const createPurchaseOrderBodyLinesItemUnitPriceMin = 0;
 
 
 export const CreatePurchaseOrderBody = zod.object({
+  "vendorId": zod.number().describe('Required — a PO cannot be created without a vendor.'),
+  "vendorExceptionJustification": zod.string().nullish().describe('Required when the vendor is not Approved\/Conditional on the AVL.\n'),
+  "qualityClauseIds": zod.array(zod.number()).optional().describe('PO-level quality clause ids'),
   "lines": zod.array(zod.object({
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
   "pieces": zod.number().min(1),
-  "lengthIn": zod.number().nullish().describe('Total length in inches for this line')
+  "lengthIn": zod.number().nullish().describe('Total length in inches for this line'),
+  "unitPrice": zod.number().min(createPurchaseOrderBodyLinesItemUnitPriceMin).nullish(),
+  "promiseDate": zod.string().nullish().describe('Vendor promise date (YYYY-MM-DD)'),
+  "qualityClauseIds": zod.array(zod.number()).optional()
 }))
 })
 
@@ -2080,6 +2692,18 @@ export const CreatePurchaseOrderResponse = zod.object({
   "customer": zod.string(),
   "status": zod.enum(['draft', 'sent', 'approved', 'rejected']),
   "reviewComment": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "vendorStatus": zod.string().nullish(),
+  "vendorExceptionJustification": zod.string().nullish(),
+  "revision": zod.number().optional(),
+  "totalAmount": zod.number().nullish(),
+  "qualityClauseIds": zod.array(zod.number()).optional().describe('PO-level quality clause ids'),
+  "approval": zod.object({
+  "requiresApproval": zod.boolean(),
+  "requiredRole": zod.string().nullish(),
+  "thresholdLabel": zod.string().nullish()
+}).optional(),
   "lineCount": zod.number(),
   "totalPieces": zod.number(),
   "lines": zod.array(zod.object({
@@ -2088,7 +2712,14 @@ export const CreatePurchaseOrderResponse = zod.object({
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
   "pieces": zod.number(),
-  "lengthIn": zod.number().nullish().describe('Total length in inches for this line')
+  "lengthIn": zod.number().nullish().describe('Total length in inches for this line'),
+  "unitPrice": zod.number().nullish().describe('Price per piece'),
+  "extendedPrice": zod.number().nullish().describe('unitPrice \* pieces, computed by the server'),
+  "promiseDate": zod.string().nullish().describe('Vendor promise date (YYYY-MM-DD)'),
+  "qualityClauseIds": zod.array(zod.number()),
+  "receivedPieces": zod.number().describe('Total pieces received against this PO line across all receiving records'),
+  "remainingPieces": zod.number().describe('Ordered pieces minus received pieces; negative means over-receipt'),
+  "receiptStatus": zod.enum(['not_received', 'partial', 'complete', 'over']).describe('Receipt status derived from ordered vs received pieces')
 })),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -2111,6 +2742,18 @@ export const GetPurchaseOrderResponse = zod.object({
   "customer": zod.string(),
   "status": zod.enum(['draft', 'sent', 'approved', 'rejected']),
   "reviewComment": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "vendorStatus": zod.string().nullish(),
+  "vendorExceptionJustification": zod.string().nullish(),
+  "revision": zod.number().optional(),
+  "totalAmount": zod.number().nullish(),
+  "qualityClauseIds": zod.array(zod.number()).optional().describe('PO-level quality clause ids'),
+  "approval": zod.object({
+  "requiresApproval": zod.boolean(),
+  "requiredRole": zod.string().nullish(),
+  "thresholdLabel": zod.string().nullish()
+}).optional(),
   "lineCount": zod.number(),
   "totalPieces": zod.number(),
   "lines": zod.array(zod.object({
@@ -2119,7 +2762,14 @@ export const GetPurchaseOrderResponse = zod.object({
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
   "pieces": zod.number(),
-  "lengthIn": zod.number().nullish().describe('Total length in inches for this line')
+  "lengthIn": zod.number().nullish().describe('Total length in inches for this line'),
+  "unitPrice": zod.number().nullish().describe('Price per piece'),
+  "extendedPrice": zod.number().nullish().describe('unitPrice \* pieces, computed by the server'),
+  "promiseDate": zod.string().nullish().describe('Vendor promise date (YYYY-MM-DD)'),
+  "qualityClauseIds": zod.array(zod.number()),
+  "receivedPieces": zod.number().describe('Total pieces received against this PO line across all receiving records'),
+  "remainingPieces": zod.number().describe('Ordered pieces minus received pieces; negative means over-receipt'),
+  "receiptStatus": zod.enum(['not_received', 'partial', 'complete', 'over']).describe('Receipt status derived from ordered vs received pieces')
 })),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -2127,23 +2777,31 @@ export const GetPurchaseOrderResponse = zod.object({
 
 
 /**
- * Replaces the full list of material lines. Only draft or rejected purchase orders can be edited.
- * @summary Replace a purchase order's lines
+ * Replaces the full list of material lines and header fields. Editing a PO past Draft captures a numbered change-order revision instead of an in-place edit.
+ * @summary Update a purchase order
  */
 export const UpdatePurchaseOrderParams = zod.object({
   "poId": zod.coerce.number()
 })
 
 
+export const updatePurchaseOrderBodyLinesItemUnitPriceMin = 0;
 
 
 export const UpdatePurchaseOrderBody = zod.object({
+  "vendorId": zod.number().optional(),
+  "vendorExceptionJustification": zod.string().nullish(),
+  "qualityClauseIds": zod.array(zod.number()).optional(),
+  "revisionNote": zod.string().nullish().describe('Change-order note; used when editing a PO past Draft, which captures a numbered revision.\n'),
   "lines": zod.array(zod.object({
   "profileType": zod.string().nullish(),
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
   "pieces": zod.number().min(1),
-  "lengthIn": zod.number().nullish().describe('Total length in inches for this line')
+  "lengthIn": zod.number().nullish().describe('Total length in inches for this line'),
+  "unitPrice": zod.number().min(updatePurchaseOrderBodyLinesItemUnitPriceMin).nullish(),
+  "promiseDate": zod.string().nullish().describe('Vendor promise date (YYYY-MM-DD)'),
+  "qualityClauseIds": zod.array(zod.number()).optional()
 }))
 })
 
@@ -2156,6 +2814,18 @@ export const UpdatePurchaseOrderResponse = zod.object({
   "customer": zod.string(),
   "status": zod.enum(['draft', 'sent', 'approved', 'rejected']),
   "reviewComment": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "vendorStatus": zod.string().nullish(),
+  "vendorExceptionJustification": zod.string().nullish(),
+  "revision": zod.number().optional(),
+  "totalAmount": zod.number().nullish(),
+  "qualityClauseIds": zod.array(zod.number()).optional().describe('PO-level quality clause ids'),
+  "approval": zod.object({
+  "requiresApproval": zod.boolean(),
+  "requiredRole": zod.string().nullish(),
+  "thresholdLabel": zod.string().nullish()
+}).optional(),
   "lineCount": zod.number(),
   "totalPieces": zod.number(),
   "lines": zod.array(zod.object({
@@ -2164,7 +2834,14 @@ export const UpdatePurchaseOrderResponse = zod.object({
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
   "pieces": zod.number(),
-  "lengthIn": zod.number().nullish().describe('Total length in inches for this line')
+  "lengthIn": zod.number().nullish().describe('Total length in inches for this line'),
+  "unitPrice": zod.number().nullish().describe('Price per piece'),
+  "extendedPrice": zod.number().nullish().describe('unitPrice \* pieces, computed by the server'),
+  "promiseDate": zod.string().nullish().describe('Vendor promise date (YYYY-MM-DD)'),
+  "qualityClauseIds": zod.array(zod.number()),
+  "receivedPieces": zod.number().describe('Total pieces received against this PO line across all receiving records'),
+  "remainingPieces": zod.number().describe('Ordered pieces minus received pieces; negative means over-receipt'),
+  "receiptStatus": zod.enum(['not_received', 'partial', 'complete', 'over']).describe('Receipt status derived from ordered vs received pieces')
 })),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -2204,6 +2881,18 @@ export const UpdatePurchaseOrderStatusResponse = zod.object({
   "customer": zod.string(),
   "status": zod.enum(['draft', 'sent', 'approved', 'rejected']),
   "reviewComment": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "vendorStatus": zod.string().nullish(),
+  "vendorExceptionJustification": zod.string().nullish(),
+  "revision": zod.number().optional(),
+  "totalAmount": zod.number().nullish(),
+  "qualityClauseIds": zod.array(zod.number()).optional().describe('PO-level quality clause ids'),
+  "approval": zod.object({
+  "requiresApproval": zod.boolean(),
+  "requiredRole": zod.string().nullish(),
+  "thresholdLabel": zod.string().nullish()
+}).optional(),
   "lineCount": zod.number(),
   "totalPieces": zod.number(),
   "lines": zod.array(zod.object({
@@ -2212,10 +2901,2205 @@ export const UpdatePurchaseOrderStatusResponse = zod.object({
   "profileSize": zod.string().nullish(),
   "grade": zod.string().nullish(),
   "pieces": zod.number(),
-  "lengthIn": zod.number().nullish().describe('Total length in inches for this line')
+  "lengthIn": zod.number().nullish().describe('Total length in inches for this line'),
+  "unitPrice": zod.number().nullish().describe('Price per piece'),
+  "extendedPrice": zod.number().nullish().describe('unitPrice \* pieces, computed by the server'),
+  "promiseDate": zod.string().nullish().describe('Vendor promise date (YYYY-MM-DD)'),
+  "qualityClauseIds": zod.array(zod.number()),
+  "receivedPieces": zod.number().describe('Total pieces received against this PO line across all receiving records'),
+  "remainingPieces": zod.number().describe('Ordered pieces minus received pieces; negative means over-receipt'),
+  "receiptStatus": zod.enum(['not_received', 'partial', 'complete', 'over']).describe('Receipt status derived from ordered vs received pieces')
 })),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
 
+
+/**
+ * Lists every drawing across all of the company's jobs with its active revision, status, and acknowledgment state — the master drawing log.
+ * @summary Company-wide drawing log
+ */
+export const ListAllDrawingsResponseItem = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "drawingNumber": zod.string(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "revisionCount": zod.number(),
+  "activeRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "drawingId": zod.number(),
+  "revisionLabel": zod.string(),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']),
+  "isActive": zod.boolean(),
+  "changeSummary": zod.string().nullable(),
+  "documentId": zod.number(),
+  "documentFilename": zod.string(),
+  "issuedBy": zod.number().nullable(),
+  "issuedByName": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "acknowledgedByMe": zod.boolean(),
+  "acknowledgments": zod.array(zod.object({
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "acknowledgedAt": zod.coerce.date()
+})).optional()
+}),zod.null()]),
+  "ackRequired": zod.boolean().describe('True when the active revision has not been acknowledged by the caller')
+})).and(zod.object({
+  "jobNumber": zod.string(),
+  "jobName": zod.string()
+}))
+export const ListAllDrawingsResponse = zod.array(ListAllDrawingsResponseItem)
+
+
+/**
+ * @summary List drawings for a job with their active revision and ack state
+ */
+export const ListJobDrawingsParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const ListJobDrawingsResponseItem = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "drawingNumber": zod.string(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "revisionCount": zod.number(),
+  "activeRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "drawingId": zod.number(),
+  "revisionLabel": zod.string(),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']),
+  "isActive": zod.boolean(),
+  "changeSummary": zod.string().nullable(),
+  "documentId": zod.number(),
+  "documentFilename": zod.string(),
+  "issuedBy": zod.number().nullable(),
+  "issuedByName": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "acknowledgedByMe": zod.boolean(),
+  "acknowledgments": zod.array(zod.object({
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "acknowledgedAt": zod.coerce.date()
+})).optional()
+}),zod.null()]),
+  "ackRequired": zod.boolean().describe('True when the active revision has not been acknowledged by the caller')
+}))
+export const ListJobDrawingsResponse = zod.array(ListJobDrawingsResponseItem)
+
+
+/**
+ * @summary Create a drawing with its first revision (multipart upload)
+ */
+export const CreateDrawingParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const CreateDrawingBody = zod.object({
+  "file": zod.instanceof(File),
+  "drawingNumber": zod.string(),
+  "description": zod.string().optional(),
+  "revisionLabel": zod.string().optional().describe('Defaults to \"0\"'),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']).optional()
+})
+
+export const CreateDrawingResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "drawingNumber": zod.string(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "drawingId": zod.number(),
+  "revisionLabel": zod.string(),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']),
+  "isActive": zod.boolean(),
+  "changeSummary": zod.string().nullable(),
+  "documentId": zod.number(),
+  "documentFilename": zod.string(),
+  "issuedBy": zod.number().nullable(),
+  "issuedByName": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "acknowledgedByMe": zod.boolean(),
+  "acknowledgments": zod.array(zod.object({
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "acknowledgedAt": zod.coerce.date()
+})).optional()
+}))
+}))
+
+
+/**
+ * @summary Get a drawing with its full revision history
+ */
+export const GetDrawingParams = zod.object({
+  "drawingId": zod.coerce.number()
+})
+
+export const GetDrawingResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "drawingNumber": zod.string(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "drawingId": zod.number(),
+  "revisionLabel": zod.string(),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']),
+  "isActive": zod.boolean(),
+  "changeSummary": zod.string().nullable(),
+  "documentId": zod.number(),
+  "documentFilename": zod.string(),
+  "issuedBy": zod.number().nullable(),
+  "issuedByName": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "acknowledgedByMe": zod.boolean(),
+  "acknowledgments": zod.array(zod.object({
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "acknowledgedAt": zod.coerce.date()
+})).optional()
+}))
+}))
+
+
+/**
+ * Multipart upload. changeSummary is required when the drawing already has an Active revision being superseded. The prior Active revision is automatically marked Superseded (never deleted).
+ * @summary Upload a new revision of an existing drawing (supersedes the prior Active revision)
+ */
+export const CreateDrawingRevisionParams = zod.object({
+  "drawingId": zod.coerce.number()
+})
+
+export const CreateDrawingRevisionBody = zod.object({
+  "file": zod.instanceof(File),
+  "revisionLabel": zod.string(),
+  "changeSummary": zod.string().optional().describe('Required when superseding an existing Active revision'),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']).optional()
+})
+
+export const CreateDrawingRevisionResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "drawingNumber": zod.string(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "drawingId": zod.number(),
+  "revisionLabel": zod.string(),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']),
+  "isActive": zod.boolean(),
+  "changeSummary": zod.string().nullable(),
+  "documentId": zod.number(),
+  "documentFilename": zod.string(),
+  "issuedBy": zod.number().nullable(),
+  "issuedByName": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "acknowledgedByMe": zod.boolean(),
+  "acknowledgments": zod.array(zod.object({
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "acknowledgedAt": zod.coerce.date()
+})).optional()
+}))
+}))
+
+
+/**
+ * @summary Update a drawing revision's workflow status
+ */
+export const UpdateDrawingRevisionStatusParams = zod.object({
+  "revisionId": zod.coerce.number()
+})
+
+export const UpdateDrawingRevisionStatusBody = zod.object({
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final'])
+})
+
+export const UpdateDrawingRevisionStatusResponse = zod.object({
+  "id": zod.number(),
+  "drawingId": zod.number(),
+  "revisionLabel": zod.string(),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']),
+  "isActive": zod.boolean(),
+  "changeSummary": zod.string().nullable(),
+  "documentId": zod.number(),
+  "documentFilename": zod.string(),
+  "issuedBy": zod.number().nullable(),
+  "issuedByName": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "acknowledgedByMe": zod.boolean(),
+  "acknowledgments": zod.array(zod.object({
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "acknowledgedAt": zod.coerce.date()
+})).optional()
+})
+
+
+/**
+ * @summary Record the current user's acknowledgment of a revision (the blocking gate)
+ */
+export const AcknowledgeDrawingRevisionParams = zod.object({
+  "revisionId": zod.coerce.number()
+})
+
+export const AcknowledgeDrawingRevisionResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "drawingRevisionId": zod.number(),
+  "acknowledgedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Download a revision's file (requires prior acknowledgment when Active)
+ */
+export const DownloadDrawingRevisionFileParams = zod.object({
+  "revisionId": zod.coerce.number()
+})
+
+export const DownloadDrawingRevisionFileResponse = zod.unknown()
+
+
+/**
+ * @summary List RFIs for a job
+ */
+export const ListJobRfisParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const ListJobRfisResponseItem = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number(),
+  "drawingId": zod.number().nullable(),
+  "drawingRevisionId": zod.number().nullable(),
+  "question": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedByName": zod.string().nullable(),
+  "directedTo": zod.string().nullable(),
+  "dueDate": zod.string().nullable(),
+  "status": zod.enum(['open', 'pending', 'closed']),
+  "responseText": zod.string().nullable(),
+  "responseDate": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListJobRfisResponse = zod.array(ListJobRfisResponseItem)
+
+
+/**
+ * @summary Create an RFI (number RFI-YYYY-NNNN is assigned automatically)
+ */
+export const CreateRfiParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const CreateRfiBody = zod.object({
+  "question": zod.string(),
+  "drawingId": zod.number().nullish(),
+  "drawingRevisionId": zod.number().nullish(),
+  "directedTo": zod.string().nullish(),
+  "dueDate": zod.string().nullish()
+})
+
+export const CreateRfiResponse = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number(),
+  "drawingId": zod.number().nullable(),
+  "drawingRevisionId": zod.number().nullable(),
+  "question": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedByName": zod.string().nullable(),
+  "directedTo": zod.string().nullable(),
+  "dueDate": zod.string().nullable(),
+  "status": zod.enum(['open', 'pending', 'closed']),
+  "responseText": zod.string().nullable(),
+  "responseDate": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an RFI (status, response, routing)
+ */
+export const UpdateRfiParams = zod.object({
+  "rfiId": zod.coerce.number()
+})
+
+export const UpdateRfiBody = zod.object({
+  "status": zod.enum(['open', 'pending', 'closed']).optional(),
+  "responseText": zod.string().nullish(),
+  "responseDate": zod.string().nullish(),
+  "directedTo": zod.string().nullish(),
+  "dueDate": zod.string().nullish()
+})
+
+export const UpdateRfiResponse = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number(),
+  "drawingId": zod.number().nullable(),
+  "drawingRevisionId": zod.number().nullable(),
+  "question": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedByName": zod.string().nullable(),
+  "directedTo": zod.string().nullable(),
+  "dueDate": zod.string().nullable(),
+  "status": zod.enum(['open', 'pending', 'closed']),
+  "responseText": zod.string().nullable(),
+  "responseDate": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List ECNs for a job
+ */
+export const ListJobEcnsParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const ListJobEcnsResponseItem = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number(),
+  "source": zod.enum(['customer', 'internal', 'field']),
+  "description": zod.string(),
+  "affectedWork": zod.string().nullable(),
+  "costImpact": zod.string().nullable(),
+  "scheduleImpact": zod.string().nullable(),
+  "disposition": zod.union([zod.enum(['rework', 'scrap', 'fabricate_to_new_rev', 'no_impact']),zod.null()]),
+  "status": zod.enum(['open', 'approved', 'closed']),
+  "approvedBy": zod.number().nullable(),
+  "approvedByName": zod.string().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "closedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "affectedRevisionIds": zod.array(zod.number())
+})
+export const ListJobEcnsResponse = zod.array(ListJobEcnsResponseItem)
+
+
+/**
+ * @summary Create an ECN (number ECN-YYYY-NNNN is assigned automatically)
+ */
+export const CreateEcnParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const CreateEcnBody = zod.object({
+  "source": zod.enum(['customer', 'internal', 'field']),
+  "description": zod.string(),
+  "affectedWork": zod.string().nullish(),
+  "costImpact": zod.string().nullish(),
+  "scheduleImpact": zod.string().nullish(),
+  "disposition": zod.union([zod.enum(['rework', 'scrap', 'fabricate_to_new_rev', 'no_impact']),zod.null()]).optional(),
+  "affectedRevisionIds": zod.array(zod.number()).optional()
+})
+
+export const CreateEcnResponse = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number(),
+  "source": zod.enum(['customer', 'internal', 'field']),
+  "description": zod.string(),
+  "affectedWork": zod.string().nullable(),
+  "costImpact": zod.string().nullable(),
+  "scheduleImpact": zod.string().nullable(),
+  "disposition": zod.union([zod.enum(['rework', 'scrap', 'fabricate_to_new_rev', 'no_impact']),zod.null()]),
+  "status": zod.enum(['open', 'approved', 'closed']),
+  "approvedBy": zod.number().nullable(),
+  "approvedByName": zod.string().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "closedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "affectedRevisionIds": zod.array(zod.number())
+})
+
+
+/**
+ * @summary Update an ECN (disposition, approval, closure)
+ */
+export const UpdateEcnParams = zod.object({
+  "ecnId": zod.coerce.number()
+})
+
+export const UpdateEcnBody = zod.object({
+  "description": zod.string().optional(),
+  "affectedWork": zod.string().nullish(),
+  "costImpact": zod.string().nullish(),
+  "scheduleImpact": zod.string().nullish(),
+  "disposition": zod.union([zod.enum(['rework', 'scrap', 'fabricate_to_new_rev', 'no_impact']),zod.null()]).optional(),
+  "status": zod.enum(['open', 'approved', 'closed']).optional(),
+  "affectedRevisionIds": zod.array(zod.number()).optional()
+})
+
+export const UpdateEcnResponse = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number(),
+  "source": zod.enum(['customer', 'internal', 'field']),
+  "description": zod.string(),
+  "affectedWork": zod.string().nullable(),
+  "costImpact": zod.string().nullable(),
+  "scheduleImpact": zod.string().nullable(),
+  "disposition": zod.union([zod.enum(['rework', 'scrap', 'fabricate_to_new_rev', 'no_impact']),zod.null()]),
+  "status": zod.enum(['open', 'approved', 'closed']),
+  "approvedBy": zod.number().nullable(),
+  "approvedByName": zod.string().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "closedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "affectedRevisionIds": zod.array(zod.number())
+})
+
+
+/**
+ * @summary List transmittals for a job
+ */
+export const ListJobTransmittalsParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const ListJobTransmittalsResponseItem = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "sentDate": zod.string(),
+  "senderId": zod.number().nullable(),
+  "senderName": zod.string().nullable(),
+  "recipient": zod.string(),
+  "purpose": zod.enum(['for_approval', 'for_record', 'for_construction', 'for_information', 'other']),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "documentId": zod.number().nullable(),
+  "drawingRevisionId": zod.number().nullable(),
+  "label": zod.string().describe('Human-readable name (filename or drawing number + rev)')
+}))
+})
+export const ListJobTransmittalsResponse = zod.array(ListJobTransmittalsResponseItem)
+
+
+/**
+ * @summary Log a transmittal (documents and/or drawing revisions sent out)
+ */
+export const CreateTransmittalParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+
+export const CreateTransmittalBody = zod.object({
+  "sentDate": zod.string(),
+  "recipient": zod.string(),
+  "purpose": zod.enum(['for_approval', 'for_record', 'for_construction', 'for_information', 'other']),
+  "notes": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "documentId": zod.number().optional(),
+  "drawingRevisionId": zod.number().optional()
+})).min(1)
+})
+
+export const CreateTransmittalResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "sentDate": zod.string(),
+  "senderId": zod.number().nullable(),
+  "senderName": zod.string().nullable(),
+  "recipient": zod.string(),
+  "purpose": zod.enum(['for_approval', 'for_record', 'for_construction', 'for_information', 'other']),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "documentId": zod.number().nullable(),
+  "drawingRevisionId": zod.number().nullable(),
+  "label": zod.string().describe('Human-readable name (filename or drawing number + rev)')
+}))
+})
+
+
+/**
+ * @summary As-Built/Final drawing revisions collected for the job closeout package
+ */
+export const GetJobCloseoutPackageParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const GetJobCloseoutPackageResponse = zod.object({
+  "jobId": zod.number(),
+  "totalDrawings": zod.number(),
+  "asBuiltCount": zod.number(),
+  "asBuiltDrawings": zod.array(zod.object({
+  "drawingId": zod.number(),
+  "drawingNumber": zod.string(),
+  "description": zod.string().nullable(),
+  "revision": zod.object({
+  "id": zod.number(),
+  "drawingId": zod.number(),
+  "revisionLabel": zod.string(),
+  "status": zod.enum(['issued_for_approval', 'approved', 'approved_as_noted', 'rejected_revise_resubmit', 'issued_for_fabrication', 'as_built_final']),
+  "isActive": zod.boolean(),
+  "changeSummary": zod.string().nullable(),
+  "documentId": zod.number(),
+  "documentFilename": zod.string(),
+  "issuedBy": zod.number().nullable(),
+  "issuedByName": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "acknowledgedByMe": zod.boolean(),
+  "acknowledgments": zod.array(zod.object({
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "acknowledgedAt": zod.coerce.date()
+})).optional()
+})
+}))
+})
+
+
+/**
+ * @summary Get an estimate's bill of materials
+ */
+export const GetEstimateBomParams = zod.object({
+  "estimateId": zod.coerce.number()
+})
+
+
+export const getEstimateBomResponseAssembliesItemPartsItemQuotedUnitPriceMin = 0;
+
+
+export const GetEstimateBomResponse = zod.object({
+  "assemblyCount": zod.number(),
+  "partCount": zod.number(),
+  "totalPieces": zod.number(),
+  "materialCost": zod.number().describe('Sum of priceable line costs'),
+  "needsQuoteCount": zod.number(),
+  "manualCount": zod.number(),
+  "assemblies": zod.array(zod.object({
+  "id": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number().min(1),
+  "description": zod.string().nullish(),
+  "finish": zod.string().nullish(),
+  "parts": zod.array(zod.object({
+  "id": zod.number(),
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "pricingStatus": zod.enum(['matched', 'needs_quote', 'manual']),
+  "catalogItemId": zod.number().nullish(),
+  "catalogUnitPrice": zod.number().nullish(),
+  "catalogPriceUnit": zod.string().nullish(),
+  "quotedUnitPrice": zod.number().min(getEstimateBomResponseAssembliesItemPartsItemQuotedUnitPriceMin).nullish(),
+  "quotedPriceUnit": zod.string().nullish(),
+  "quoteSource": zod.string().nullish(),
+  "isMisc": zod.boolean(),
+  "lineCost": zod.number().nullish().describe('Extended cost for this line (per assembly quantity), when priceable')
+}))
+})),
+  "totals": zod.array(zod.object({
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "pieces": zod.number(),
+  "totalLengthIn": zod.number().nullish()
+}))
+})
+
+
+/**
+ * Parses a KISS (.kss) file and returns the assemblies plus a material match report against the shared material catalog. Nothing is saved. Materials that cannot be confidently matched are flagged and must be explicitly resolved before commit.
+ * @summary Parse a KISS file for estimate BOM import preview
+ */
+export const ParseEstimateBomFileParams = zod.object({
+  "estimateId": zod.coerce.number()
+})
+
+export const ParseEstimateBomFileBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+
+export const ParseEstimateBomFileResponse = zod.object({
+  "bom": zod.object({
+  "jobRef": zod.string().nullish(),
+  "jobName": zod.string().nullish(),
+  "assemblyCount": zod.number(),
+  "partCount": zod.number(),
+  "totalPieces": zod.number(),
+  "assemblies": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "mark": zod.string(),
+  "quantity": zod.number().min(1),
+  "description": zod.string().nullish(),
+  "finish": zod.string().nullish(),
+  "processingPath": zod.string().nullish(),
+  "currentStage": zod.string().nullish(),
+  "onHold": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "inspectedOn": zod.string().nullish(),
+  "station": zod.string().nullish(),
+  "inspector": zod.string().nullish(),
+  "parts": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "heatNumber": zod.string().nullish()
+}))
+})),
+  "totals": zod.array(zod.object({
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "pieces": zod.number(),
+  "totalLengthIn": zod.number().nullish()
+}))
+}),
+  "materials": zod.array(zod.object({
+  "key": zod.string().describe('Pipe-delimited profileType|profileSize|grade key'),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "pieces": zod.number(),
+  "totalLengthIn": zod.number().nullish(),
+  "matched": zod.boolean().describe('True when a confident (exact) catalog match was found'),
+  "catalogItemId": zod.number().nullish(),
+  "catalogUnitPrice": zod.number().nullish(),
+  "catalogPriceUnit": zod.string().nullish()
+})),
+  "unmatchedCount": zod.number()
+})
+
+
+/**
+ * Replaces the estimate's BOM with the supplied assemblies. Every distinct material must carry an explicit resolution (catalog match, needs-quote, or manual price) — unresolved materials are rejected, never silently guessed.
+ * @summary Commit a reviewed KISS import as the estimate's BOM
+ */
+export const CommitEstimateBomImportParams = zod.object({
+  "estimateId": zod.coerce.number()
+})
+
+
+export const commitEstimateBomImportBodyResolutionsItemManualUnitPriceMin = 0;
+
+
+export const CommitEstimateBomImportBody = zod.object({
+  "assemblies": zod.array(zod.object({
+  "mark": zod.string(),
+  "quantity": zod.number().min(1),
+  "description": zod.string().nullish(),
+  "finish": zod.string().nullish(),
+  "parts": zod.array(zod.object({
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish()
+}))
+})),
+  "resolutions": zod.array(zod.object({
+  "key": zod.string().describe('Pipe-delimited profileType|profileSize|grade key'),
+  "action": zod.enum(['match', 'needs_quote', 'manual']),
+  "catalogItemId": zod.number().nullish().describe('Required when action is match'),
+  "manualUnitPrice": zod.number().min(commitEstimateBomImportBodyResolutionsItemManualUnitPriceMin).nullish().describe('Required when action is manual'),
+  "manualPriceUnit": zod.string().nullish().describe('per_foot | per_piece | per_lb (manual action)'),
+  "quoteSource": zod.string().nullish(),
+  "isMisc": zod.boolean().optional().describe('Mark these parts as misc\/hardware (always included in RFQ export)')
+}))
+})
+
+
+export const commitEstimateBomImportResponseAssembliesItemPartsItemQuotedUnitPriceMin = 0;
+
+
+export const CommitEstimateBomImportResponse = zod.object({
+  "assemblyCount": zod.number(),
+  "partCount": zod.number(),
+  "totalPieces": zod.number(),
+  "materialCost": zod.number().describe('Sum of priceable line costs'),
+  "needsQuoteCount": zod.number(),
+  "manualCount": zod.number(),
+  "assemblies": zod.array(zod.object({
+  "id": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number().min(1),
+  "description": zod.string().nullish(),
+  "finish": zod.string().nullish(),
+  "parts": zod.array(zod.object({
+  "id": zod.number(),
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "pricingStatus": zod.enum(['matched', 'needs_quote', 'manual']),
+  "catalogItemId": zod.number().nullish(),
+  "catalogUnitPrice": zod.number().nullish(),
+  "catalogPriceUnit": zod.string().nullish(),
+  "quotedUnitPrice": zod.number().min(commitEstimateBomImportResponseAssembliesItemPartsItemQuotedUnitPriceMin).nullish(),
+  "quotedPriceUnit": zod.string().nullish(),
+  "quoteSource": zod.string().nullish(),
+  "isMisc": zod.boolean(),
+  "lineCost": zod.number().nullish().describe('Extended cost for this line (per assembly quantity), when priceable')
+}))
+})),
+  "totals": zod.array(zod.object({
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "pieces": zod.number(),
+  "totalLengthIn": zod.number().nullish()
+}))
+})
+
+
+/**
+ * @summary Add an assembly to the estimate BOM manually
+ */
+export const CreateEstimateBomAssemblyParams = zod.object({
+  "estimateId": zod.coerce.number()
+})
+
+
+export const CreateEstimateBomAssemblyBody = zod.object({
+  "mark": zod.string().min(1),
+  "quantity": zod.number().min(1).optional(),
+  "description": zod.string().nullish(),
+  "finish": zod.string().nullish()
+})
+
+
+export const createEstimateBomAssemblyResponsePartsItemQuotedUnitPriceMin = 0;
+
+
+export const CreateEstimateBomAssemblyResponse = zod.object({
+  "id": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number().min(1),
+  "description": zod.string().nullish(),
+  "finish": zod.string().nullish(),
+  "parts": zod.array(zod.object({
+  "id": zod.number(),
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "pricingStatus": zod.enum(['matched', 'needs_quote', 'manual']),
+  "catalogItemId": zod.number().nullish(),
+  "catalogUnitPrice": zod.number().nullish(),
+  "catalogPriceUnit": zod.string().nullish(),
+  "quotedUnitPrice": zod.number().min(createEstimateBomAssemblyResponsePartsItemQuotedUnitPriceMin).nullish(),
+  "quotedPriceUnit": zod.string().nullish(),
+  "quoteSource": zod.string().nullish(),
+  "isMisc": zod.boolean(),
+  "lineCost": zod.number().nullish().describe('Extended cost for this line (per assembly quantity), when priceable')
+}))
+})
+
+
+/**
+ * @summary Update an estimate BOM assembly
+ */
+export const UpdateEstimateBomAssemblyParams = zod.object({
+  "assemblyId": zod.coerce.number()
+})
+
+
+export const UpdateEstimateBomAssemblyBody = zod.object({
+  "mark": zod.string().min(1).optional(),
+  "quantity": zod.number().min(1).optional(),
+  "description": zod.string().nullish(),
+  "finish": zod.string().nullish()
+})
+
+
+export const updateEstimateBomAssemblyResponsePartsItemQuotedUnitPriceMin = 0;
+
+
+export const UpdateEstimateBomAssemblyResponse = zod.object({
+  "id": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number().min(1),
+  "description": zod.string().nullish(),
+  "finish": zod.string().nullish(),
+  "parts": zod.array(zod.object({
+  "id": zod.number(),
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "pricingStatus": zod.enum(['matched', 'needs_quote', 'manual']),
+  "catalogItemId": zod.number().nullish(),
+  "catalogUnitPrice": zod.number().nullish(),
+  "catalogPriceUnit": zod.string().nullish(),
+  "quotedUnitPrice": zod.number().min(updateEstimateBomAssemblyResponsePartsItemQuotedUnitPriceMin).nullish(),
+  "quotedPriceUnit": zod.string().nullish(),
+  "quoteSource": zod.string().nullish(),
+  "isMisc": zod.boolean(),
+  "lineCost": zod.number().nullish().describe('Extended cost for this line (per assembly quantity), when priceable')
+}))
+})
+
+
+/**
+ * @summary Delete an estimate BOM assembly
+ */
+export const DeleteEstimateBomAssemblyParams = zod.object({
+  "assemblyId": zod.coerce.number()
+})
+
+export const DeleteEstimateBomAssemblyResponse = zod.void()
+
+
+/**
+ * @summary Add a part to an estimate BOM assembly
+ */
+export const CreateEstimateBomPartParams = zod.object({
+  "assemblyId": zod.coerce.number()
+})
+
+
+export const CreateEstimateBomPartBody = zod.object({
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "isMisc": zod.boolean().optional()
+})
+
+
+export const createEstimateBomPartResponseQuotedUnitPriceMin = 0;
+
+
+export const CreateEstimateBomPartResponse = zod.object({
+  "id": zod.number(),
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "pricingStatus": zod.enum(['matched', 'needs_quote', 'manual']),
+  "catalogItemId": zod.number().nullish(),
+  "catalogUnitPrice": zod.number().nullish(),
+  "catalogPriceUnit": zod.string().nullish(),
+  "quotedUnitPrice": zod.number().min(createEstimateBomPartResponseQuotedUnitPriceMin).nullish(),
+  "quotedPriceUnit": zod.string().nullish(),
+  "quoteSource": zod.string().nullish(),
+  "isMisc": zod.boolean(),
+  "lineCost": zod.number().nullish().describe('Extended cost for this line (per assembly quantity), when priceable')
+})
+
+
+/**
+ * @summary Update an estimate BOM part (fields or pricing resolution)
+ */
+export const UpdateEstimateBomPartParams = zod.object({
+  "partId": zod.coerce.number()
+})
+
+
+export const updateEstimateBomPartBodyQuotedUnitPriceMin = 0;
+
+
+export const UpdateEstimateBomPartBody = zod.object({
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1).optional(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "pricingStatus": zod.enum(['matched', 'needs_quote', 'manual']).optional(),
+  "catalogItemId": zod.number().nullish(),
+  "quotedUnitPrice": zod.number().min(updateEstimateBomPartBodyQuotedUnitPriceMin).nullish(),
+  "quotedPriceUnit": zod.string().nullish(),
+  "quoteSource": zod.string().nullish(),
+  "isMisc": zod.boolean().optional()
+})
+
+
+export const updateEstimateBomPartResponseQuotedUnitPriceMin = 0;
+
+
+export const UpdateEstimateBomPartResponse = zod.object({
+  "id": zod.number(),
+  "partMark": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "lengthIn": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "pricingStatus": zod.enum(['matched', 'needs_quote', 'manual']),
+  "catalogItemId": zod.number().nullish(),
+  "catalogUnitPrice": zod.number().nullish(),
+  "catalogPriceUnit": zod.string().nullish(),
+  "quotedUnitPrice": zod.number().min(updateEstimateBomPartResponseQuotedUnitPriceMin).nullish(),
+  "quotedPriceUnit": zod.string().nullish(),
+  "quoteSource": zod.string().nullish(),
+  "isMisc": zod.boolean(),
+  "lineCost": zod.number().nullish().describe('Extended cost for this line (per assembly quantity), when priceable')
+})
+
+
+/**
+ * @summary Delete an estimate BOM part
+ */
+export const DeleteEstimateBomPartParams = zod.object({
+  "partId": zod.coerce.number()
+})
+
+export const DeleteEstimateBomPartResponse = zod.void()
+
+
+/**
+ * Returns the request-for-quote list for the estimate — every material marked needs-quote plus misc/hardware items (misc items are never filtered out). Use the CSV export endpoint for a downloadable file.
+ * @summary RFQ list for unmatched / needs-quote materials
+ */
+export const GetEstimateRfqParams = zod.object({
+  "estimateId": zod.coerce.number()
+})
+
+export const GetEstimateRfqResponseItem = zod.object({
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "pieces": zod.number(),
+  "totalLengthIn": zod.number().nullish(),
+  "isMisc": zod.boolean(),
+  "quoteSource": zod.string().nullish()
+})
+export const GetEstimateRfqResponse = zod.array(GetEstimateRfqResponseItem)
+
+
+/**
+ * @summary Pricing rollup (material + labor + margin)
+ */
+export const GetEstimatePricingParams = zod.object({
+  "estimateId": zod.coerce.number()
+})
+
+export const getEstimatePricingResponseMarginPercentMin = 0;
+export const getEstimatePricingResponseMarginPercentMax = 100;
+
+
+export const GetEstimatePricingResponse = zod.object({
+  "materialCost": zod.number(),
+  "laborCost": zod.number(),
+  "subtotal": zod.number(),
+  "marginPercent": zod.number().min(getEstimatePricingResponseMarginPercentMin).max(getEstimatePricingResponseMarginPercentMax),
+  "marginAmount": zod.number(),
+  "total": zod.number(),
+  "needsQuoteCount": zod.number().describe('Materials still awaiting a quote (not included in cost)')
+})
+
+
+/**
+ * @summary List labor lines for an estimate
+ */
+export const ListEstimateLaborLinesParams = zod.object({
+  "estimateId": zod.coerce.number()
+})
+
+export const listEstimateLaborLinesResponseHoursMin = 0;
+
+export const listEstimateLaborLinesResponseHourlyRateMin = 0;
+
+
+export const ListEstimateLaborLinesResponseItem = zod.object({
+  "id": zod.number(),
+  "trade": zod.string(),
+  "hours": zod.number().min(listEstimateLaborLinesResponseHoursMin),
+  "hourlyRate": zod.number().min(listEstimateLaborLinesResponseHourlyRateMin),
+  "cost": zod.number(),
+  "notes": zod.string().nullish(),
+  "sortIndex": zod.number().optional()
+})
+export const ListEstimateLaborLinesResponse = zod.array(ListEstimateLaborLinesResponseItem)
+
+
+/**
+ * Adds a labor line. When hourlyRate is omitted, the company's configured rate for the trade is used (0 if none configured).
+ * @summary Add a labor line
+ */
+export const CreateEstimateLaborLineParams = zod.object({
+  "estimateId": zod.coerce.number()
+})
+
+
+export const createEstimateLaborLineBodyHoursMin = 0;
+
+export const createEstimateLaborLineBodyHourlyRateMin = 0;
+
+
+export const CreateEstimateLaborLineBody = zod.object({
+  "trade": zod.string().min(1),
+  "hours": zod.number().min(createEstimateLaborLineBodyHoursMin),
+  "hourlyRate": zod.number().min(createEstimateLaborLineBodyHourlyRateMin).nullish().describe('Defaults to the company\'s configured rate for the trade'),
+  "notes": zod.string().nullish()
+})
+
+export const createEstimateLaborLineResponseHoursMin = 0;
+
+export const createEstimateLaborLineResponseHourlyRateMin = 0;
+
+
+export const CreateEstimateLaborLineResponse = zod.object({
+  "id": zod.number(),
+  "trade": zod.string(),
+  "hours": zod.number().min(createEstimateLaborLineResponseHoursMin),
+  "hourlyRate": zod.number().min(createEstimateLaborLineResponseHourlyRateMin),
+  "cost": zod.number(),
+  "notes": zod.string().nullish(),
+  "sortIndex": zod.number().optional()
+})
+
+
+/**
+ * @summary Update a labor line
+ */
+export const UpdateEstimateLaborLineParams = zod.object({
+  "lineId": zod.coerce.number()
+})
+
+
+export const updateEstimateLaborLineBodyHoursMin = 0;
+
+export const updateEstimateLaborLineBodyHourlyRateMin = 0;
+
+
+export const UpdateEstimateLaborLineBody = zod.object({
+  "trade": zod.string().min(1).optional(),
+  "hours": zod.number().min(updateEstimateLaborLineBodyHoursMin).optional(),
+  "hourlyRate": zod.number().min(updateEstimateLaborLineBodyHourlyRateMin).optional(),
+  "notes": zod.string().nullish()
+})
+
+export const updateEstimateLaborLineResponseHoursMin = 0;
+
+export const updateEstimateLaborLineResponseHourlyRateMin = 0;
+
+
+export const UpdateEstimateLaborLineResponse = zod.object({
+  "id": zod.number(),
+  "trade": zod.string(),
+  "hours": zod.number().min(updateEstimateLaborLineResponseHoursMin),
+  "hourlyRate": zod.number().min(updateEstimateLaborLineResponseHourlyRateMin),
+  "cost": zod.number(),
+  "notes": zod.string().nullish(),
+  "sortIndex": zod.number().optional()
+})
+
+
+/**
+ * @summary Delete a labor line
+ */
+export const DeleteEstimateLaborLineParams = zod.object({
+  "lineId": zod.coerce.number()
+})
+
+export const DeleteEstimateLaborLineResponse = zod.void()
+
+
+/**
+ * @summary List the company's configured labor rates
+ */
+export const listLaborRatesResponseHourlyRateMin = 0;
+
+
+export const ListLaborRatesResponseItem = zod.object({
+  "id": zod.number(),
+  "trade": zod.string(),
+  "hourlyRate": zod.number().min(listLaborRatesResponseHourlyRateMin),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLaborRatesResponse = zod.array(ListLaborRatesResponseItem)
+
+
+/**
+ * @summary Add a labor rate for a trade
+ */
+
+export const createLaborRateBodyHourlyRateMin = 0;
+
+
+export const CreateLaborRateBody = zod.object({
+  "trade": zod.string().min(1),
+  "hourlyRate": zod.number().min(createLaborRateBodyHourlyRateMin),
+  "notes": zod.string().nullish()
+})
+
+export const createLaborRateResponseHourlyRateMin = 0;
+
+
+export const CreateLaborRateResponse = zod.object({
+  "id": zod.number(),
+  "trade": zod.string(),
+  "hourlyRate": zod.number().min(createLaborRateResponseHourlyRateMin),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a labor rate
+ */
+export const UpdateLaborRateParams = zod.object({
+  "rateId": zod.coerce.number()
+})
+
+
+export const updateLaborRateBodyHourlyRateMin = 0;
+
+
+export const UpdateLaborRateBody = zod.object({
+  "trade": zod.string().min(1).optional(),
+  "hourlyRate": zod.number().min(updateLaborRateBodyHourlyRateMin).optional(),
+  "notes": zod.string().nullish()
+})
+
+export const updateLaborRateResponseHourlyRateMin = 0;
+
+
+export const UpdateLaborRateResponse = zod.object({
+  "id": zod.number(),
+  "trade": zod.string(),
+  "hourlyRate": zod.number().min(updateLaborRateResponseHourlyRateMin),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a labor rate
+ */
+export const DeleteLaborRateParams = zod.object({
+  "rateId": zod.coerce.number()
+})
+
+export const DeleteLaborRateResponse = zod.void()
+
+
+/**
+ * @summary List receiving records for a purchase order
+ */
+export const ListPoReceivingRecordsParams = zod.object({
+  "poId": zod.coerce.number()
+})
+
+export const ListPoReceivingRecordsResponseItem = zod.object({
+  "id": zod.number(),
+  "purchaseOrderId": zod.number(),
+  "poNumber": zod.string().nullish(),
+  "receivedDate": zod.coerce.date(),
+  "receivedByName": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "purchaseOrderLineId": zod.number().nullish(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "heatNumber": zod.string(),
+  "cmtrDocumentId": zod.number(),
+  "cmtrFilename": zod.string().nullish(),
+  "pieces": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "unitCost": zod.number().nullish(),
+  "discrepancyNotes": zod.string().nullish(),
+  "inventoryItemId": zod.number().nullish().describe('Inventory item created from this received line')
+})),
+  "createdAt": zod.coerce.date()
+})
+export const ListPoReceivingRecordsResponse = zod.array(ListPoReceivingRecordsResponseItem)
+
+
+/**
+ * Captures one delivery. Every line requires a heat/lot number and a CMTR document reference at receiving time — they cannot be filled in later. Each received line creates an available inventory item allocated to the PO's job and logs a costed material movement.
+ * @summary Record a receiving event against a purchase order
+ */
+export const CreateReceivingRecordParams = zod.object({
+  "poId": zod.coerce.number()
+})
+
+
+export const CreateReceivingRecordBody = zod.object({
+  "receivedDate": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "purchaseOrderLineId": zod.number().nullish(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "heatNumber": zod.string().min(1),
+  "cmtrDocumentId": zod.number().describe('CMTR\/MTR document id (required at receiving)'),
+  "pieces": zod.number().min(1),
+  "lengthIn": zod.number().nullish(),
+  "unitCost": zod.number().nullish().describe('Cost per piece; defaults from the PO line unit price'),
+  "discrepancyNotes": zod.string().nullish()
+})).min(1)
+})
+
+export const CreateReceivingRecordResponse = zod.object({
+  "id": zod.number(),
+  "purchaseOrderId": zod.number(),
+  "poNumber": zod.string().nullish(),
+  "receivedDate": zod.coerce.date(),
+  "receivedByName": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "purchaseOrderLineId": zod.number().nullish(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "heatNumber": zod.string(),
+  "cmtrDocumentId": zod.number(),
+  "cmtrFilename": zod.string().nullish(),
+  "pieces": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "unitCost": zod.number().nullish(),
+  "discrepancyNotes": zod.string().nullish(),
+  "inventoryItemId": zod.number().nullish().describe('Inventory item created from this received line')
+})),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List inventory items (stock and remnants)
+ */
+export const ListInventoryItemsQueryParams = zod.object({
+  "status": zod.enum(['available', 'committed', 'consumed']).optional(),
+  "search": zod.coerce.string().optional(),
+  "jobId": zod.coerce.number().optional()
+})
+
+export const ListInventoryItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "quantity": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "sourceJobId": zod.number().nullish(),
+  "sourceJobNumber": zod.string().nullish(),
+  "receivingLineId": zod.number().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "poNumber": zod.string().nullish(),
+  "vendorName": zod.string().nullish(),
+  "cmtrDocumentId": zod.number().nullish(),
+  "isRemnant": zod.boolean(),
+  "status": zod.enum(['available', 'committed', 'consumed']),
+  "committedJobId": zod.number().nullish().describe('Job this item is reserved for (set when status is committed)'),
+  "committedJobNumber": zod.string().nullish().describe('Job number of the committed job'),
+  "unitCost": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListInventoryItemsResponse = zod.array(ListInventoryItemsResponseItem)
+
+
+/**
+ * @summary Add an inventory item manually (general stock without a receiving record)
+ */
+
+
+export const CreateInventoryItemBody = zod.object({
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "quantity": zod.number().min(1),
+  "lengthIn": zod.number().nullish(),
+  "sourceJobId": zod.number().nullish(),
+  "isRemnant": zod.boolean().optional(),
+  "unitCost": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "quantity": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "sourceJobId": zod.number().nullish(),
+  "sourceJobNumber": zod.string().nullish(),
+  "receivingLineId": zod.number().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "poNumber": zod.string().nullish(),
+  "vendorName": zod.string().nullish(),
+  "cmtrDocumentId": zod.number().nullish(),
+  "isRemnant": zod.boolean(),
+  "status": zod.enum(['available', 'committed', 'consumed']),
+  "committedJobId": zod.number().nullish().describe('Job this item is reserved for (set when status is committed)'),
+  "committedJobNumber": zod.string().nullish().describe('Job number of the committed job'),
+  "unitCost": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Consumes pieces from an available inventory item against a job (optionally a specific BOM part). Cross-job consumption is allowed and preserves the original heat/vendor/PO/CMTR traceability chain. A remnant can be cut back into stock in the same operation; it carries the original receiving-line reference forward.
+ * @summary Consume inventory on a job
+ */
+export const ConsumeInventoryItemParams = zod.object({
+  "itemId": zod.coerce.number()
+})
+
+
+export const ConsumeInventoryItemBody = zod.object({
+  "jobId": zod.number(),
+  "bomPartId": zod.number().nullish(),
+  "pieces": zod.number().min(1),
+  "remnantLengthIn": zod.number().nullish().describe('When set, a remnant of this length is returned to stock carrying the original traceability references forward.\n'),
+  "notes": zod.string().nullish()
+})
+
+export const ConsumeInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "quantity": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "sourceJobId": zod.number().nullish(),
+  "sourceJobNumber": zod.string().nullish(),
+  "receivingLineId": zod.number().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "poNumber": zod.string().nullish(),
+  "vendorName": zod.string().nullish(),
+  "cmtrDocumentId": zod.number().nullish(),
+  "isRemnant": zod.boolean(),
+  "status": zod.enum(['available', 'committed', 'consumed']),
+  "committedJobId": zod.number().nullish().describe('Job this item is reserved for (set when status is committed)'),
+  "committedJobNumber": zod.string().nullish().describe('Job number of the committed job'),
+  "unitCost": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Transfer an inventory item between jobs or to general stock
+ */
+export const TransferInventoryItemParams = zod.object({
+  "itemId": zod.coerce.number()
+})
+
+export const TransferInventoryItemBody = zod.object({
+  "jobId": zod.number().nullish().describe('Destination job; null moves the item to general stock'),
+  "notes": zod.string().nullish()
+})
+
+export const TransferInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "quantity": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "sourceJobId": zod.number().nullish(),
+  "sourceJobNumber": zod.string().nullish(),
+  "receivingLineId": zod.number().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "poNumber": zod.string().nullish(),
+  "vendorName": zod.string().nullish(),
+  "cmtrDocumentId": zod.number().nullish(),
+  "isRemnant": zod.boolean(),
+  "status": zod.enum(['available', 'committed', 'consumed']),
+  "committedJobId": zod.number().nullish().describe('Job this item is reserved for (set when status is committed)'),
+  "committedJobNumber": zod.string().nullish().describe('Job number of the committed job'),
+  "unitCost": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Commit an inventory item to a job (reserve it so other jobs can't plan it)
+ */
+export const CommitInventoryItemParams = zod.object({
+  "itemId": zod.coerce.number()
+})
+
+export const CommitInventoryItemBody = zod.object({
+  "jobId": zod.number().describe('Job to commit this item to')
+})
+
+export const CommitInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "quantity": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "sourceJobId": zod.number().nullish(),
+  "sourceJobNumber": zod.string().nullish(),
+  "receivingLineId": zod.number().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "poNumber": zod.string().nullish(),
+  "vendorName": zod.string().nullish(),
+  "cmtrDocumentId": zod.number().nullish(),
+  "isRemnant": zod.boolean(),
+  "status": zod.enum(['available', 'committed', 'consumed']),
+  "committedJobId": zod.number().nullish().describe('Job this item is reserved for (set when status is committed)'),
+  "committedJobNumber": zod.string().nullish().describe('Job number of the committed job'),
+  "unitCost": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Release a commitment, returning the item to available status
+ */
+export const UncommitInventoryItemParams = zod.object({
+  "itemId": zod.coerce.number()
+})
+
+export const UncommitInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "quantity": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "sourceJobId": zod.number().nullish(),
+  "sourceJobNumber": zod.string().nullish(),
+  "receivingLineId": zod.number().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "poNumber": zod.string().nullish(),
+  "vendorName": zod.string().nullish(),
+  "cmtrDocumentId": zod.number().nullish(),
+  "isRemnant": zod.boolean(),
+  "status": zod.enum(['available', 'committed', 'consumed']),
+  "committedJobId": zod.number().nullish().describe('Job this item is reserved for (set when status is committed)'),
+  "committedJobNumber": zod.string().nullish().describe('Job number of the committed job'),
+  "unitCost": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Assembly → part → inventory item → receiving line → CMTR/PO/vendor for every consumption charged to the job, including remnants originally received against other jobs (original references carried forward).
+ * @summary Job Heat Sheet — relational traceability per consumption
+ */
+export const GetJobHeatSheetParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const GetJobHeatSheetResponse = zod.object({
+  "jobId": zod.number(),
+  "jobNumber": zod.string(),
+  "jobName": zod.string().optional(),
+  "entries": zod.array(zod.object({
+  "movementId": zod.number(),
+  "assemblyMark": zod.string().nullish(),
+  "partMark": zod.string().nullish(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "pieces": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "vendorName": zod.string().nullish(),
+  "poNumber": zod.string().nullish(),
+  "cmtrDocumentId": zod.number().nullish(),
+  "cmtrFilename": zod.string().nullish(),
+  "originalJobNumber": zod.string().nullish().describe('Set when the material was originally received against a different job (remnant\/cross-job)'),
+  "isRemnant": zod.boolean().optional(),
+  "totalCost": zod.number().nullish(),
+  "consumedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * For each material rolled up from the job's BOM, lists matching available inventory so buyers can use stock before creating a new PO.
+ * @summary On-hand stock matching the job's BOM material needs
+ */
+export const GetJobStockMatchesParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const GetJobStockMatchesResponseItem = zod.object({
+  "profileType": zod.string().nullable(),
+  "profileSize": zod.string().nullable(),
+  "grade": zod.string().nullable(),
+  "neededPieces": zod.number(),
+  "neededLengthIn": zod.number().nullish(),
+  "availablePieces": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "quantity": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "sourceJobNumber": zod.string().nullish(),
+  "isRemnant": zod.boolean(),
+  "status": zod.enum(['available', 'committed', 'consumed']),
+  "unitCost": zod.number().nullish()
+}))
+})
+export const GetJobStockMatchesResponse = zod.array(GetJobStockMatchesResponseItem)
+
+
+/**
+ * All material movements in the given month with cost, plus per-job totals — the export that replaces manual ComputerEase reconstruction.
+ * @summary Monthly material-movement report (cost per job)
+ */
+export const getMaterialMovementsReportQueryMonthRegExp = new RegExp('^\\d{4}-\\d{2}$');
+
+
+export const GetMaterialMovementsReportQueryParams = zod.object({
+  "month": zod.coerce.string().regex(getMaterialMovementsReportQueryMonthRegExp).describe('Calendar month, YYYY-MM')
+})
+
+export const GetMaterialMovementsReportResponse = zod.object({
+  "month": zod.string(),
+  "movements": zod.array(zod.object({
+  "id": zod.number(),
+  "movementType": zod.enum(['purchased', 'received', 'consumed', 'transferred']),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "poNumber": zod.string().nullish(),
+  "profileType": zod.string().nullish(),
+  "profileSize": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "heatNumber": zod.string().nullish(),
+  "quantity": zod.number(),
+  "lengthIn": zod.number().nullish(),
+  "totalCost": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})),
+  "jobTotals": zod.array(zod.object({
+  "jobId": zod.number().nullable(),
+  "jobNumber": zod.string().nullable(),
+  "jobName": zod.string().nullish(),
+  "receivedCost": zod.number(),
+  "consumedCost": zod.number(),
+  "movementCount": zod.number()
+})),
+  "totalReceivedCost": zod.number(),
+  "totalConsumedCost": zod.number()
+})
+
+
+/**
+ * @summary Inventory cost/usage trend by month
+ */
+export const GetInventoryTrendReportQueryParams = zod.object({
+  "months": zod.coerce.number().optional().describe('Number of trailing months (default 12)')
+})
+
+export const GetInventoryTrendReportResponseItem = zod.object({
+  "month": zod.string(),
+  "receivedCost": zod.number(),
+  "consumedCost": zod.number(),
+  "receivedPieces": zod.number(),
+  "consumedPieces": zod.number(),
+  "inventoryValue": zod.number().describe('Value of on-hand (non-consumed) inventory at month end, from movement history'),
+  "availablePieces": zod.number()
+})
+export const GetInventoryTrendReportResponse = zod.array(GetInventoryTrendReportResponseItem)
+
+
+/**
+ * @summary List nonconformance reports
+ */
+export const ListNcrsQueryParams = zod.object({
+  "jobId": zod.coerce.number().optional(),
+  "status": zod.enum(['open', 'closed']).optional()
+})
+
+export const ListNcrsResponseItem = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "source": zod.enum(['receiving', 'in_process', 'final', 'post_delivery']),
+  "description": zod.string(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "assemblyId": zod.number().nullish(),
+  "assemblyMark": zod.string().nullish(),
+  "purchaseOrderId": zod.number().nullish(),
+  "poNumber": zod.string().nullish(),
+  "disposition": zod.union([zod.literal('rework'),zod.literal('scrap'),zod.literal('accept_with_deviation'),zod.literal(null)]).nullish(),
+  "dispositionNotes": zod.string().nullish(),
+  "rootCause": zod.string().nullish(),
+  "approvedBy": zod.number().nullish(),
+  "approvedByName": zod.string().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "closedAt": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListNcrsResponse = zod.array(ListNcrsResponseItem)
+
+
+/**
+ * @summary Create a nonconformance report
+ */
+
+
+export const CreateNcrBody = zod.object({
+  "source": zod.enum(['receiving', 'in_process', 'final', 'post_delivery']),
+  "description": zod.string().min(1),
+  "jobId": zod.number().nullish(),
+  "assemblyId": zod.number().nullish(),
+  "purchaseOrderId": zod.number().nullish()
+})
+
+export const CreateNcrResponse = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "source": zod.enum(['receiving', 'in_process', 'final', 'post_delivery']),
+  "description": zod.string(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "assemblyId": zod.number().nullish(),
+  "assemblyMark": zod.string().nullish(),
+  "purchaseOrderId": zod.number().nullish(),
+  "poNumber": zod.string().nullish(),
+  "disposition": zod.union([zod.literal('rework'),zod.literal('scrap'),zod.literal('accept_with_deviation'),zod.literal(null)]).nullish(),
+  "dispositionNotes": zod.string().nullish(),
+  "rootCause": zod.string().nullish(),
+  "approvedBy": zod.number().nullish(),
+  "approvedByName": zod.string().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "closedAt": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Closing an NCR requires a disposition. Approval stamps the caller as approver.
+ * @summary Update an NCR (disposition, root cause, approval, closure)
+ */
+export const UpdateNcrParams = zod.object({
+  "ncrId": zod.coerce.number()
+})
+
+export const UpdateNcrBody = zod.object({
+  "description": zod.string().optional(),
+  "disposition": zod.union([zod.literal('rework'),zod.literal('scrap'),zod.literal('accept_with_deviation'),zod.literal(null)]).nullish(),
+  "dispositionNotes": zod.string().nullish(),
+  "rootCause": zod.string().nullish(),
+  "approve": zod.boolean().optional().describe('Stamp the caller as approver'),
+  "close": zod.boolean().optional().describe('Close the NCR (requires a disposition)'),
+  "reopen": zod.boolean().optional()
+})
+
+export const UpdateNcrResponse = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "source": zod.enum(['receiving', 'in_process', 'final', 'post_delivery']),
+  "description": zod.string(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "assemblyId": zod.number().nullish(),
+  "assemblyMark": zod.string().nullish(),
+  "purchaseOrderId": zod.number().nullish(),
+  "poNumber": zod.string().nullish(),
+  "disposition": zod.union([zod.literal('rework'),zod.literal('scrap'),zod.literal('accept_with_deviation'),zod.literal(null)]).nullish(),
+  "dispositionNotes": zod.string().nullish(),
+  "rootCause": zod.string().nullish(),
+  "approvedBy": zod.number().nullish(),
+  "approvedByName": zod.string().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "closedAt": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List material substitution requests
+ */
+export const ListSubstitutionRequestsQueryParams = zod.object({
+  "jobId": zod.coerce.number().optional(),
+  "status": zod.enum(['pending', 'approved', 'rejected']).optional()
+})
+
+export const ListSubstitutionRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "assemblyId": zod.number().nullish(),
+  "assemblyMark": zod.string().nullish(),
+  "originalSpec": zod.string(),
+  "proposedSubstitution": zod.string(),
+  "type": zod.enum(['like_for_like', 'equivalent', 'upgrade', 'downgrade']),
+  "engineeringRationale": zod.string(),
+  "customerSpecified": zod.boolean(),
+  "safetyCritical": zod.boolean(),
+  "customerConcurrence": zod.boolean(),
+  "concurrenceReference": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedBy": zod.number().nullish(),
+  "approvedByName": zod.string().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "executionReference": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListSubstitutionRequestsResponse = zod.array(ListSubstitutionRequestsResponseItem)
+
+
+/**
+ * @summary Create a substitution request
+ */
+
+
+export const CreateSubstitutionRequestBody = zod.object({
+  "originalSpec": zod.string().min(1),
+  "proposedSubstitution": zod.string().min(1),
+  "type": zod.enum(['like_for_like', 'equivalent', 'upgrade', 'downgrade']),
+  "engineeringRationale": zod.string().min(1),
+  "jobId": zod.number().nullish(),
+  "assemblyId": zod.number().nullish(),
+  "customerSpecified": zod.boolean().optional(),
+  "safetyCritical": zod.boolean().optional()
+})
+
+export const CreateSubstitutionRequestResponse = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "assemblyId": zod.number().nullish(),
+  "assemblyMark": zod.string().nullish(),
+  "originalSpec": zod.string(),
+  "proposedSubstitution": zod.string(),
+  "type": zod.enum(['like_for_like', 'equivalent', 'upgrade', 'downgrade']),
+  "engineeringRationale": zod.string(),
+  "customerSpecified": zod.boolean(),
+  "safetyCritical": zod.boolean(),
+  "customerConcurrence": zod.boolean(),
+  "concurrenceReference": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedBy": zod.number().nullish(),
+  "approvedByName": zod.string().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "executionReference": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Approval is blocked for customer-specified or safety-critical substitutions until customer concurrence is recorded.
+ * @summary Update / approve / reject a substitution request
+ */
+export const UpdateSubstitutionRequestParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const UpdateSubstitutionRequestBody = zod.object({
+  "customerConcurrence": zod.boolean().optional(),
+  "concurrenceReference": zod.string().nullish(),
+  "executionReference": zod.string().nullish(),
+  "approve": zod.boolean().optional(),
+  "reject": zod.boolean().optional()
+})
+
+export const UpdateSubstitutionRequestResponse = zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "assemblyId": zod.number().nullish(),
+  "assemblyMark": zod.string().nullish(),
+  "originalSpec": zod.string(),
+  "proposedSubstitution": zod.string(),
+  "type": zod.enum(['like_for_like', 'equivalent', 'upgrade', 'downgrade']),
+  "engineeringRationale": zod.string(),
+  "customerSpecified": zod.boolean(),
+  "safetyCritical": zod.boolean(),
+  "customerConcurrence": zod.boolean(),
+  "concurrenceReference": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedBy": zod.number().nullish(),
+  "approvedByName": zod.string().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "executionReference": zod.string().nullish(),
+  "createdByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List shipments for a job
+ */
+export const ListJobShipmentsParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+export const ListJobShipmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "shipperNumber": zod.string(),
+  "carrier": zod.string().nullish(),
+  "pickupInfo": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['planned', 'departed']),
+  "departedAt": zod.string().nullish(),
+  "assemblies": zod.array(zod.object({
+  "assemblyId": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number(),
+  "description": zod.string().nullish(),
+  "currentStage": zod.string().nullish(),
+  "onHold": zod.boolean().optional(),
+  "readyToShip": zod.boolean()
+})),
+  "notification": zod.union([zod.object({
+  "id": zod.number(),
+  "proposedShipDate": zod.string(),
+  "carrier": zod.string(),
+  "notes": zod.string().nullish(),
+  "notifiedByName": zod.string().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional(),
+  "loadConfirmation": zod.union([zod.object({
+  "id": zod.number(),
+  "signedBy": zod.string(),
+  "signedAt": zod.string(),
+  "discrepancyNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "paperworkReady": zod.boolean().describe('True once the shipment notification has been recorded'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListJobShipmentsResponse = zod.array(ListJobShipmentsResponseItem)
+
+
+/**
+ * Every assembly must be Ready to Ship (current stage Inspected and not on hold) and not already on another open shipment. Shipper number is assigned as [job#]-S[NN].
+ * @summary Create a shipment from Ready-to-Ship assemblies
+ */
+export const CreateShipmentParams = zod.object({
+  "jobId": zod.coerce.number()
+})
+
+
+export const CreateShipmentBody = zod.object({
+  "assemblyIds": zod.array(zod.number()).min(1),
+  "carrier": zod.string().nullish(),
+  "pickupInfo": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateShipmentResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "shipperNumber": zod.string(),
+  "carrier": zod.string().nullish(),
+  "pickupInfo": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['planned', 'departed']),
+  "departedAt": zod.string().nullish(),
+  "assemblies": zod.array(zod.object({
+  "assemblyId": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number(),
+  "description": zod.string().nullish(),
+  "currentStage": zod.string().nullish(),
+  "onHold": zod.boolean().optional(),
+  "readyToShip": zod.boolean()
+})),
+  "notification": zod.union([zod.object({
+  "id": zod.number(),
+  "proposedShipDate": zod.string(),
+  "carrier": zod.string(),
+  "notes": zod.string().nullish(),
+  "notifiedByName": zod.string().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional(),
+  "loadConfirmation": zod.union([zod.object({
+  "id": zod.number(),
+  "signedBy": zod.string(),
+  "signedAt": zod.string(),
+  "discrepancyNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "paperworkReady": zod.boolean().describe('True once the shipment notification has been recorded'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get a shipment
+ */
+export const GetShipmentParams = zod.object({
+  "shipmentId": zod.coerce.number()
+})
+
+export const GetShipmentResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "shipperNumber": zod.string(),
+  "carrier": zod.string().nullish(),
+  "pickupInfo": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['planned', 'departed']),
+  "departedAt": zod.string().nullish(),
+  "assemblies": zod.array(zod.object({
+  "assemblyId": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number(),
+  "description": zod.string().nullish(),
+  "currentStage": zod.string().nullish(),
+  "onHold": zod.boolean().optional(),
+  "readyToShip": zod.boolean()
+})),
+  "notification": zod.union([zod.object({
+  "id": zod.number(),
+  "proposedShipDate": zod.string(),
+  "carrier": zod.string(),
+  "notes": zod.string().nullish(),
+  "notifiedByName": zod.string().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional(),
+  "loadConfirmation": zod.union([zod.object({
+  "id": zod.number(),
+  "signedBy": zod.string(),
+  "signedAt": zod.string(),
+  "discrepancyNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "paperworkReady": zod.boolean().describe('True once the shipment notification has been recorded'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a planned (not departed) shipment
+ */
+export const DeleteShipmentParams = zod.object({
+  "shipmentId": zod.coerce.number()
+})
+
+export const DeleteShipmentResponse = zod.void()
+
+
+/**
+ * Required before BOL/packing-slip paperwork can be generated. One notification per shipment.
+ * @summary Record the written shipment notification
+ */
+export const CreateShipmentNotificationParams = zod.object({
+  "shipmentId": zod.coerce.number()
+})
+
+
+export const CreateShipmentNotificationBody = zod.object({
+  "proposedShipDate": zod.string().min(1),
+  "carrier": zod.string().min(1),
+  "notes": zod.string().nullish()
+})
+
+export const CreateShipmentNotificationResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "shipperNumber": zod.string(),
+  "carrier": zod.string().nullish(),
+  "pickupInfo": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['planned', 'departed']),
+  "departedAt": zod.string().nullish(),
+  "assemblies": zod.array(zod.object({
+  "assemblyId": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number(),
+  "description": zod.string().nullish(),
+  "currentStage": zod.string().nullish(),
+  "onHold": zod.boolean().optional(),
+  "readyToShip": zod.boolean()
+})),
+  "notification": zod.union([zod.object({
+  "id": zod.number(),
+  "proposedShipDate": zod.string(),
+  "carrier": zod.string(),
+  "notes": zod.string().nullish(),
+  "notifiedByName": zod.string().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional(),
+  "loadConfirmation": zod.union([zod.object({
+  "id": zod.number(),
+  "signedBy": zod.string(),
+  "signedAt": zod.string(),
+  "discrepancyNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "paperworkReady": zod.boolean().describe('True once the shipment notification has been recorded'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Required before a shipment can be marked departed.
+ * @summary Record the signed load confirmation
+ */
+export const CreateLoadConfirmationParams = zod.object({
+  "shipmentId": zod.coerce.number()
+})
+
+
+export const CreateLoadConfirmationBody = zod.object({
+  "signedBy": zod.string().min(1),
+  "discrepancyNotes": zod.string().nullish()
+})
+
+export const CreateLoadConfirmationResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "shipperNumber": zod.string(),
+  "carrier": zod.string().nullish(),
+  "pickupInfo": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['planned', 'departed']),
+  "departedAt": zod.string().nullish(),
+  "assemblies": zod.array(zod.object({
+  "assemblyId": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number(),
+  "description": zod.string().nullish(),
+  "currentStage": zod.string().nullish(),
+  "onHold": zod.boolean().optional(),
+  "readyToShip": zod.boolean()
+})),
+  "notification": zod.union([zod.object({
+  "id": zod.number(),
+  "proposedShipDate": zod.string(),
+  "carrier": zod.string(),
+  "notes": zod.string().nullish(),
+  "notifiedByName": zod.string().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional(),
+  "loadConfirmation": zod.union([zod.object({
+  "id": zod.number(),
+  "signedBy": zod.string(),
+  "signedAt": zod.string(),
+  "discrepancyNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "paperworkReady": zod.boolean().describe('True once the shipment notification has been recorded'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Hard gate — requires a signed load confirmation. Moves every assembly on the shipment to the Shipped stage.
+ * @summary Mark a shipment departed
+ */
+export const DepartShipmentParams = zod.object({
+  "shipmentId": zod.coerce.number()
+})
+
+export const DepartShipmentResponse = zod.object({
+  "id": zod.number(),
+  "jobId": zod.number(),
+  "shipperNumber": zod.string(),
+  "carrier": zod.string().nullish(),
+  "pickupInfo": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['planned', 'departed']),
+  "departedAt": zod.string().nullish(),
+  "assemblies": zod.array(zod.object({
+  "assemblyId": zod.number(),
+  "mark": zod.string(),
+  "quantity": zod.number(),
+  "description": zod.string().nullish(),
+  "currentStage": zod.string().nullish(),
+  "onHold": zod.boolean().optional(),
+  "readyToShip": zod.boolean()
+})),
+  "notification": zod.union([zod.object({
+  "id": zod.number(),
+  "proposedShipDate": zod.string(),
+  "carrier": zod.string(),
+  "notes": zod.string().nullish(),
+  "notifiedByName": zod.string().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional(),
+  "loadConfirmation": zod.union([zod.object({
+  "id": zod.number(),
+  "signedBy": zod.string(),
+  "signedAt": zod.string(),
+  "discrepancyNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "paperworkReady": zod.boolean().describe('True once the shipment notification has been recorded'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
 

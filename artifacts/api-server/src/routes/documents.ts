@@ -10,15 +10,56 @@ import {
   documentsTable,
   bomPartsTable,
   bomAssembliesTable,
+  drawingRevisionsTable,
 } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { UploadJobDocumentBody } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
+
+/**
+ * Resolves a document and verifies the caller's company owns the parent record.
+ * Returns the document row, or null if not found / not owned.
+ */
+async function resolveDocWithOwnership(
+  documentId: number,
+  companyId: number,
+): Promise<typeof documentsTable.$inferSelect | null> {
+  const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, documentId));
+  if (!doc) return null;
+
+  if (doc.jobId !== null) {
+    const [job] = await db
+      .select({ id: jobsTable.id })
+      .from(jobsTable)
+      .where(and(eq(jobsTable.id, doc.jobId), eq(jobsTable.companyId, companyId)));
+    return job ? doc : null;
+  }
+  if (doc.estimateId !== null) {
+    const [est] = await db
+      .select({ id: estimatesTable.id })
+      .from(estimatesTable)
+      .where(and(eq(estimatesTable.id, doc.estimateId), eq(estimatesTable.companyId, companyId)));
+    return est ? doc : null;
+  }
+  if (doc.partId !== null) {
+    // Part → assembly → job → company
+    const rows = await db
+      .select({ companyId: jobsTable.companyId })
+      .from(documentsTable)
+      .innerJoin(bomPartsTable, eq(documentsTable.partId, bomPartsTable.id))
+      .innerJoin(bomAssembliesTable, eq(bomPartsTable.assemblyId, bomAssembliesTable.id))
+      .innerJoin(jobsTable, eq(bomAssembliesTable.jobId, jobsTable.id))
+      .where(and(eq(documentsTable.id, documentId), eq(jobsTable.companyId, companyId)));
+    return rows.length > 0 ? doc : null;
+  }
+  return null;
+}
 import { objectStorageClient, ObjectStorageService } from "../lib/objectStorage";
 import { parseIntParam } from "../lib/params";
 
 export const MAX_DOCUMENT_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
-const ALLOWED_EXTENSIONS = new Set([
+export const ALLOWED_EXTENSIONS = new Set([
   ".pdf",
   ".dwg",
   ".dxf",
@@ -31,7 +72,14 @@ const ALLOWED_EXTENSIONS = new Set([
   ".csv",
   ".kss",
   ".xml",
+  ".step",
+  ".stp",
+  ".igs",
+  ".iges",
 ]);
+
+export const ALLOWED_EXTENSIONS_LABEL =
+  "PDF, DWG, DXF, NC1, NC, JPG, PNG, XLSX, CSV, KSS, XML, STEP/STP, IGS/IGES";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -106,7 +154,7 @@ function toDocumentDto(doc: typeof documentsTable.$inferSelect) {
 
 const router: IRouter = Router();
 
-const uploadMiddleware = (
+export const uploadMiddleware = (
   req: Parameters<ReturnType<typeof upload.single>>[0],
   res: Parameters<ReturnType<typeof upload.single>>[1],
   next: Parameters<ReturnType<typeof upload.single>>[2],
@@ -128,7 +176,9 @@ const uploadMiddleware = (
 
 router.get(
   "/estimates/:estimateId/documents",
+  requireAuth,
   async (req, res): Promise<void> => {
+    const companyId = req.auth!.companyId;
     const estimateId = parseIntParam(req.params.estimateId);
     if (estimateId === null) {
       res.status(400).json({ error: "Invalid estimate id" });
@@ -137,7 +187,7 @@ router.get(
     const [estimate] = await db
       .select()
       .from(estimatesTable)
-      .where(eq(estimatesTable.id, estimateId));
+      .where(and(eq(estimatesTable.id, estimateId), eq(estimatesTable.companyId, companyId)));
     if (!estimate) {
       res.status(404).json({ error: "Estimate not found" });
       return;
@@ -153,8 +203,10 @@ router.get(
 
 router.post(
   "/estimates/:estimateId/documents",
+  requireAuth,
   uploadMiddleware,
   async (req, res): Promise<void> => {
+    const companyId = req.auth!.companyId;
     const estimateId = parseIntParam(req.params.estimateId);
     if (estimateId === null) {
       res.status(400).json({ error: "Invalid estimate id" });
@@ -163,7 +215,7 @@ router.post(
     const [estimate] = await db
       .select()
       .from(estimatesTable)
-      .where(eq(estimatesTable.id, estimateId));
+      .where(and(eq(estimatesTable.id, estimateId), eq(estimatesTable.companyId, companyId)));
     if (!estimate) {
       res.status(404).json({ error: "Estimate not found" });
       return;
@@ -185,7 +237,7 @@ router.post(
     const ext = path.extname(originalName).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
       res.status(400).json({
-        error: `File type "${ext || "unknown"}" is not allowed. Allowed types: PDF, DWG, DXF, NC1, NC, JPG, PNG, XLSX, CSV, KSS, XML.`,
+        error: `File type "${ext || "unknown"}" is not allowed. Allowed types: ${ALLOWED_EXTENSIONS_LABEL}.`,
       });
       return;
     }
@@ -221,13 +273,31 @@ router.post(
   },
 );
 
-router.get("/jobs/:jobId/documents", async (req, res): Promise<void> => {
+/**
+ * Documents that back a drawing revision are controlled documents: they are
+ * hidden from the generic job-documents list and can only be fetched through
+ * GET /drawing-revisions/:revisionId/file, which enforces the acknowledgment
+ * gate. Returns the revision-backed document ids among the given ids.
+ */
+async function revisionBackedDocumentIds(
+  documentIds: number[],
+): Promise<Set<number>> {
+  if (documentIds.length === 0) return new Set();
+  const rows = await db
+    .select({ documentId: drawingRevisionsTable.documentId })
+    .from(drawingRevisionsTable)
+    .where(inArray(drawingRevisionsTable.documentId, documentIds));
+  return new Set(rows.map((r) => r.documentId));
+}
+
+router.get("/jobs/:jobId/documents", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const jobId = parseIntParam(req.params.jobId);
   if (jobId === null) {
     res.status(400).json({ error: "Invalid job id" });
     return;
   }
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId));
+  const [job] = await db.select().from(jobsTable).where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
   if (!job) {
     res.status(404).json({ error: "Job not found" });
     return;
@@ -237,13 +307,16 @@ router.get("/jobs/:jobId/documents", async (req, res): Promise<void> => {
     .from(documentsTable)
     .where(eq(documentsTable.jobId, jobId))
     .orderBy(documentsTable.uploadedAt);
-  res.json(docs.map(toDocumentDto));
+  const controlled = await revisionBackedDocumentIds(docs.map((d) => d.id));
+  res.json(docs.filter((d) => !controlled.has(d.id)).map(toDocumentDto));
 });
 
 router.post(
   "/jobs/:jobId/documents",
+  requireAuth,
   uploadMiddleware,
   async (req, res): Promise<void> => {
+    const companyId = req.auth!.companyId;
     const jobId = parseIntParam(req.params.jobId);
     if (jobId === null) {
       res.status(400).json({ error: "Invalid job id" });
@@ -252,7 +325,7 @@ router.post(
     const [job] = await db
       .select()
       .from(jobsTable)
-      .where(eq(jobsTable.id, jobId));
+      .where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
     if (!job) {
       res.status(404).json({ error: "Job not found" });
       return;
@@ -272,7 +345,7 @@ router.post(
     const ext = path.extname(originalName).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
       res.status(400).json({
-        error: `File type "${ext || "unknown"}" is not allowed. Allowed types: PDF, DWG, DXF, NC1, NC, JPG, PNG, XLSX, CSV, KSS, XML.`,
+        error: `File type "${ext || "unknown"}" is not allowed. Allowed types: ${ALLOWED_EXTENSIONS_LABEL}.`,
       });
       return;
     }
@@ -305,17 +378,21 @@ router.post(
   },
 );
 
-router.get("/bom/parts/:partId/documents", async (req, res): Promise<void> => {
+router.get("/bom/parts/:partId/documents", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const partId = parseIntParam(req.params.partId);
   if (partId === null) {
     res.status(400).json({ error: "Invalid part id" });
     return;
   }
-  const [part] = await db
-    .select()
+  // Verify part's job belongs to caller's company
+  const partRows = await db
+    .select({ assemblyId: bomPartsTable.assemblyId })
     .from(bomPartsTable)
-    .where(eq(bomPartsTable.id, partId));
-  if (!part) {
+    .innerJoin(bomAssembliesTable, eq(bomPartsTable.assemblyId, bomAssembliesTable.id))
+    .innerJoin(jobsTable, eq(bomAssembliesTable.jobId, jobsTable.id))
+    .where(and(eq(bomPartsTable.id, partId), eq(jobsTable.companyId, companyId)));
+  if (partRows.length === 0) {
     res.status(404).json({ error: "Part not found" });
     return;
   }
@@ -329,18 +406,23 @@ router.get("/bom/parts/:partId/documents", async (req, res): Promise<void> => {
 
 router.post(
   "/bom/parts/:partId/documents",
+  requireAuth,
   uploadMiddleware,
   async (req, res): Promise<void> => {
+    const companyId = req.auth!.companyId;
     const partId = parseIntParam(req.params.partId);
     if (partId === null) {
       res.status(400).json({ error: "Invalid part id" });
       return;
     }
-    const [part] = await db
-      .select()
+    // Verify part's job belongs to caller's company
+    const partRows = await db
+      .select({ assemblyId: bomPartsTable.assemblyId })
       .from(bomPartsTable)
-      .where(eq(bomPartsTable.id, partId));
-    if (!part) {
+      .innerJoin(bomAssembliesTable, eq(bomPartsTable.assemblyId, bomAssembliesTable.id))
+      .innerJoin(jobsTable, eq(bomAssembliesTable.jobId, jobsTable.id))
+      .where(and(eq(bomPartsTable.id, partId), eq(jobsTable.companyId, companyId)));
+    if (partRows.length === 0) {
       res.status(404).json({ error: "Part not found" });
       return;
     }
@@ -407,18 +489,25 @@ router.post(
 
 router.get(
   "/documents/:documentId/download",
+  requireAuth,
   async (req, res): Promise<void> => {
+    const companyId = req.auth!.companyId;
     const documentId = parseIntParam(req.params.documentId);
     if (documentId === null) {
       res.status(400).json({ error: "Invalid document id" });
       return;
     }
-    const [doc] = await db
-      .select()
-      .from(documentsTable)
-      .where(eq(documentsTable.id, documentId));
+    const doc = await resolveDocWithOwnership(documentId, companyId);
     if (!doc) {
       res.status(404).json({ error: "Document not found" });
+      return;
+    }
+    const controlled = await revisionBackedDocumentIds([documentId]);
+    if (controlled.has(documentId)) {
+      res.status(403).json({
+        error:
+          "This file backs a controlled drawing revision. Download it through the drawing's revision endpoint, which requires acknowledgment.",
+      });
       return;
     }
     const gcsFile = storageFile(doc.storageKey);
@@ -446,18 +535,24 @@ router.get(
   },
 );
 
-router.delete("/documents/:documentId", async (req, res): Promise<void> => {
+router.delete("/documents/:documentId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const documentId = parseIntParam(req.params.documentId);
   if (documentId === null) {
     res.status(400).json({ error: "Invalid document id" });
     return;
   }
-  const [doc] = await db
-    .select()
-    .from(documentsTable)
-    .where(eq(documentsTable.id, documentId));
+  const doc = await resolveDocWithOwnership(documentId, companyId);
   if (!doc) {
     res.status(404).json({ error: "Document not found" });
+    return;
+  }
+  const controlled = await revisionBackedDocumentIds([documentId]);
+  if (controlled.has(documentId)) {
+    res.status(403).json({
+      error:
+        "This file backs a drawing revision and cannot be deleted — revisions are superseded, never removed.",
+    });
     return;
   }
   const deleted = await deleteStoredObject(doc.storageKey);

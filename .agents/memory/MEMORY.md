@@ -3,3 +3,8 @@
 - [time-tracking integrity rules](time-tracking-integrity.md) — invariants the API must enforce on time entries and clock-in.
 - [drizzle push & check constraints](drizzle-push-check-constraints.md) — `drizzle-kit push` silently ignores changed CHECK constraints; verify with pg_constraint and ALTER manually.
 - [multipart OpenAPI codegen](multipart-openapi-codegen.md) — $ref a named form schema and add DOM lib to the zod package tsconfig, or codegen/typecheck breaks.
+- [db package rebuild pattern](db-rebuild-pattern.md) — after adding schema files, run `tsc -p tsconfig.json` in lib/db before typechecking dependents; the dist/ d.ts files are what downstream packages see.
+- [api-server esbuild externals](api-server-bundling.md) — pdfkit must stay external; connect-pg-simple auto-table-create fails under bundling and silently breaks sessions on fresh DBs.
+- [multi-tenant auth setup](multi-tenant-auth.md) — session-based auth on Express; kiosk routes need a separate auth path since they lack browser sessions.
+- [task-env DB drift](task-env-db-drift.md) — task envs' dev DB lags schema and `drizzle-kit push` prompts interactively; run migrate script + idempotent DDL, mirror DDL into post-merge.sh.
+- [session table on fresh DBs](session-table-bundled-server.md) — bundled server can't auto-create the pg session table; create user_sessions manually + restart, or all logins 401.

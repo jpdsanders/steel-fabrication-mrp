@@ -5,7 +5,9 @@
  * Steel Fabrication MRP API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { EstimateInputQuoteFormat } from './estimateInputQuoteFormat';
 import type { EstimateInputStatus } from './estimateInputStatus';
+import type { EstimateInputType } from './estimateInputType';
 
 export interface EstimateInput {
   /** @minLength 1 */
@@ -13,6 +15,13 @@ export interface EstimateInput {
   /** @minLength 1 */
   customer: string;
   status?: EstimateInputStatus;
+  type?: EstimateInputType;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  marginPercent?: number;
+  quoteFormat?: EstimateInputQuoteFormat;
   estimatedHours?: number;
   /** @nullable */
   amount?: number | null;

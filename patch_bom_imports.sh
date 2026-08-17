@@ -1,0 +1,1 @@
+sed -i 's/import {/import {\n  useCreateEstimateBomAssembly,\n  useUpdateEstimateBomAssembly,\n  useDeleteEstimateBomAssembly,\n  useCreateEstimateBomPart,\n  useUpdateEstimateBomPart,\n  useDeleteEstimateBomPart,\n  getGetEstimateRfqQueryKey,\n  type EstimateBomPart,/g' artifacts/mrp/src/pages/EstimateBomCard.tsx

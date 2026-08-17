@@ -9,9 +9,13 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
+import { companiesTable } from "./companies";
 
 export const jobsTable = pgTable("jobs", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id")
+    .notNull()
+    .references(() => companiesTable.id, { onDelete: "restrict" }),
   jobNumber: text("job_number").notNull().unique(),
   name: text("name").notNull(),
   customer: text("customer").notNull(),

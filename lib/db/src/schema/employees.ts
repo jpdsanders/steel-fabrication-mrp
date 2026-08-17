@@ -1,9 +1,20 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  serial,
+  integer,
+  text,
+  boolean,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { companiesTable } from "./companies";
 
 export const employeesTable = pgTable("employees", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id")
+    .notNull()
+    .references(() => companiesTable.id, { onDelete: "restrict" }),
   name: text("name").notNull(),
   employeeCode: text("employee_code"),
   jobTitle: text("job_title"),

@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: nesting
+    description: 1D cutting-stock nesting and cut-list generation
   - name: jobs
     description: Job and production tracking operations
   - name: estimates
@@ -32,6 +34,10 @@ tags:
     description: CRM customer, contact, and address operations
   - name: purchase-orders
     description: Materials purchase orders and PM review
+  - name: qc
+    description: Nonconformance reports and material substitution requests
+  - name: shipping
+    description: Shipments, ship notifications, load confirmations, and paperwork gates
 paths:
   /healthz:
     get:
@@ -1469,6 +1475,511 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /purchase-orders/due-in:
+    get:
+      operationId: listDueInLines
+      tags: [purchase-orders]
+      summary: Due-in tracking for open PO lines
+      description: >
+        Open (sent/approved) PO lines with vendor promise date and a computed
+        Overdue / Due-soon / OK status.
+      responses:
+        "200":
+          description: Open PO lines with due status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DueInLine"
+
+  /purchase-orders/{poId}/revisions:
+    get:
+      operationId: listPurchaseOrderRevisions
+      tags: [purchase-orders]
+      summary: List a purchase order's change-order revisions
+      parameters:
+        - $ref: "#/components/parameters/PoId"
+      responses:
+        "200":
+          description: Revisions, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PurchaseOrderRevision"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /vendors:
+    get:
+      operationId: listVendors
+      tags: [vendors]
+      summary: List vendors (Approved Vendor List)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/VendorStatus"
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Vendors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vendor"
+    post:
+      operationId: createVendor
+      tags: [vendors]
+      summary: Create a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+        "409":
+          description: Duplicate name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /vendors/{vendorId}:
+    patch:
+      operationId: updateVendor
+      tags: [vendors]
+      summary: Update a vendor
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteVendor
+      tags: [vendors]
+      summary: Delete a vendor
+      description: Vendors referenced by purchase orders cannot be deleted.
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Vendor is referenced by purchase orders
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /vendor-categories:
+    get:
+      operationId: listVendorCategories
+      tags: [vendors]
+      summary: List vendor categories
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorCategory"
+    post:
+      operationId: createVendorCategory
+      tags: [vendors]
+      summary: Create a vendor category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorCategoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorCategory"
+        "409":
+          description: Duplicate name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /vendors/{vendorId}/stock-lengths:
+    get:
+      operationId: listVendorStockLengths
+      tags: [vendors]
+      summary: List standard stock lengths for a vendor
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "200":
+          description: Stock lengths
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorStockLength"
+    post:
+      operationId: createVendorStockLength
+      tags: [vendors]
+      summary: Add a standard stock length for a vendor
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorStockLengthInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorStockLength"
+        "409":
+          description: Duplicate entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /vendors/{vendorId}/stock-lengths/{stockLengthId}:
+    delete:
+      operationId: deleteVendorStockLength
+      tags: [vendors]
+      summary: Remove a standard stock length from a vendor
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+        - name: stockLengthId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/nesting/compute:
+    post:
+      operationId: computeNesting
+      tags: [nesting]
+      summary: Compute nesting options for a job's BOM
+      description: |
+        Groups BOM parts by (profileType, profileSize, grade) and runs the
+        cutting-stock engine against all vendor stock lengths on file. Returns
+        ranked options (by waste%) per group. Nothing is persisted — call
+        acceptNestingOption to save the chosen plan.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NestingComputeInput"
+      responses:
+        "200":
+          description: Nesting options per profile group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NestingComputeResult"
+
+  /jobs/{jobId}/nesting/plan:
+    get:
+      operationId: getNestingPlan
+      tags: [nesting]
+      summary: Get the accepted nesting plan for a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Accepted nesting plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NestingPlan"
+        "404":
+          description: No accepted plan for this job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: acceptNestingOption
+      tags: [nesting]
+      summary: Accept a nesting option and save it as the job's plan
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptNestingInput"
+      responses:
+        "201":
+          description: Plan saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NestingPlan"
+    delete:
+      operationId: deleteNestingPlan
+      tags: [nesting]
+      summary: Delete the accepted nesting plan for a job (revert to draft)
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "204":
+          description: Deleted
+
+  /jobs/{jobId}/nesting/cut-list:
+    get:
+      operationId: getNestingCutList
+      tags: [nesting]
+      summary: Get the printable cut list for the accepted nesting plan
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Cut list grouped by profile and bar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NestingCutList"
+        "404":
+          description: No accepted plan for this job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /vendor-categories/{categoryId}:
+    patch:
+      operationId: updateVendorCategory
+      tags: [vendors]
+      summary: Rename a vendor category
+      parameters:
+        - $ref: "#/components/parameters/CategoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorCategoryInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorCategory"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteVendorCategory
+      tags: [vendors]
+      summary: Delete a vendor category
+      parameters:
+        - $ref: "#/components/parameters/CategoryId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /quality-clauses:
+    get:
+      operationId: listQualityClauses
+      tags: [purchase-orders]
+      summary: List the company's quality clause library
+      responses:
+        "200":
+          description: Quality clauses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QualityClause"
+    post:
+      operationId: createQualityClause
+      tags: [purchase-orders]
+      summary: Create a quality clause
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QualityClauseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QualityClause"
+        "409":
+          description: Duplicate code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /quality-clauses/{clauseId}:
+    patch:
+      operationId: updateQualityClause
+      tags: [purchase-orders]
+      summary: Update a quality clause
+      parameters:
+        - $ref: "#/components/parameters/ClauseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QualityClauseInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QualityClause"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteQualityClause
+      tags: [purchase-orders]
+      summary: Delete a quality clause
+      description: >
+        Clauses referenced by purchase orders should be deactivated instead;
+        delete removes them from the library entirely.
+      parameters:
+        - $ref: "#/components/parameters/ClauseId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /po-approval-thresholds:
+    get:
+      operationId: listApprovalThresholds
+      tags: [purchase-orders]
+      summary: Get the company's PO approval-threshold matrix
+      description: >
+        Returns the per-company threshold tiers, seeding editable defaults
+        ($0 auto-approve, $2,500 and $10,000 approval tiers) on first access.
+      responses:
+        "200":
+          description: Threshold tiers ordered by minTotal
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApprovalThreshold"
+    put:
+      operationId: replaceApprovalThresholds
+      tags: [purchase-orders]
+      summary: Replace the company's PO approval-threshold matrix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalThresholdMatrixInput"
+      responses:
+        "200":
+          description: New threshold tiers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApprovalThreshold"
+        "400":
+          description: Invalid matrix
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /purchase-orders:
     get:
       operationId: listPurchaseOrders
@@ -1577,10 +2088,11 @@ paths:
     patch:
       operationId: updatePurchaseOrder
       tags: [purchase-orders]
-      summary: Replace a purchase order's lines
+      summary: Update a purchase order
       description: >
-        Replaces the full list of material lines. Only draft or rejected
-        purchase orders can be edited.
+        Replaces the full list of material lines and header fields. Editing a
+        PO past Draft captures a numbered change-order revision instead of an
+        in-place edit.
       parameters:
         - $ref: "#/components/parameters/PoId"
       requestBody:
@@ -1588,7 +2100,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PurchaseOrderInput"
+              $ref: "#/components/schemas/PurchaseOrderUpdate"
       responses:
         "200":
           description: Updated
@@ -1668,10 +2180,1699 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /jobs/{jobId}/drawings:
+    get:
+      operationId: listJobDrawings
+      tags: [drawings]
+      summary: List drawings for a job with their active revision and ack state
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Drawings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DrawingListItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createDrawing
+      tags: [drawings]
+      summary: Create a drawing with its first revision (multipart upload)
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/DrawingUploadForm"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrawingDetail"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Drawing number already exists for this job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /drawings/{drawingId}:
+    get:
+      operationId: getDrawing
+      tags: [drawings]
+      summary: Get a drawing with its full revision history
+      parameters:
+        - $ref: "#/components/parameters/DrawingId"
+      responses:
+        "200":
+          description: Drawing detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrawingDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /drawings/{drawingId}/revisions:
+    post:
+      operationId: createDrawingRevision
+      tags: [drawings]
+      summary: Upload a new revision of an existing drawing (supersedes the prior Active revision)
+      description: >
+        Multipart upload. changeSummary is required when the drawing already has
+        an Active revision being superseded. The prior Active revision is
+        automatically marked Superseded (never deleted).
+      parameters:
+        - $ref: "#/components/parameters/DrawingId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/DrawingRevisionUploadForm"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrawingDetail"
+        "400":
+          description: Invalid input (missing changeSummary, bad file type)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Revision label already used for this drawing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /drawing-revisions/{revisionId}/status:
+    patch:
+      operationId: updateDrawingRevisionStatus
+      tags: [drawings]
+      summary: Update a drawing revision's workflow status
+      parameters:
+        - $ref: "#/components/parameters/RevisionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DrawingRevisionStatusInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrawingRevision"
+        "400":
+          description: Invalid status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /drawing-revisions/{revisionId}/acknowledge:
+    post:
+      operationId: acknowledgeDrawingRevision
+      tags: [drawings]
+      summary: Record the current user's acknowledgment of a revision (the blocking gate)
+      parameters:
+        - $ref: "#/components/parameters/RevisionId"
+      responses:
+        "201":
+          description: Acknowledgment recorded (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrawingAcknowledgment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /drawing-revisions/{revisionId}/file:
+    get:
+      operationId: downloadDrawingRevisionFile
+      tags: [drawings]
+      summary: Download a revision's file (requires prior acknowledgment when Active)
+      parameters:
+        - $ref: "#/components/parameters/RevisionId"
+      responses:
+        "200":
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Active revision not yet acknowledged by the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/rfis:
+    get:
+      operationId: listJobRfis
+      tags: [rfis]
+      summary: List RFIs for a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: RFIs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rfi"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createRfi
+      tags: [rfis]
+      summary: Create an RFI (number RFI-YYYY-NNNN is assigned automatically)
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RfiInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rfi"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /rfis/{rfiId}:
+    patch:
+      operationId: updateRfi
+      tags: [rfis]
+      summary: Update an RFI (status, response, routing)
+      parameters:
+        - $ref: "#/components/parameters/RfiId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RfiUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rfi"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/ecns:
+    get:
+      operationId: listJobEcns
+      tags: [ecns]
+      summary: List ECNs for a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: ECNs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ecn"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createEcn
+      tags: [ecns]
+      summary: Create an ECN (number ECN-YYYY-NNNN is assigned automatically)
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EcnInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ecn"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /ecns/{ecnId}:
+    patch:
+      operationId: updateEcn
+      tags: [ecns]
+      summary: Update an ECN (disposition, approval, closure)
+      parameters:
+        - $ref: "#/components/parameters/EcnId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EcnUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ecn"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/transmittals:
+    get:
+      operationId: listJobTransmittals
+      tags: [transmittals]
+      summary: List transmittals for a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Transmittals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transmittal"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createTransmittal
+      tags: [transmittals]
+      summary: Log a transmittal (documents and/or drawing revisions sent out)
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransmittalInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transmittal"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/closeout-package:
+    get:
+      operationId: getJobCloseoutPackage
+      tags: [drawings]
+      summary: As-Built/Final drawing revisions collected for the job closeout package
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Closeout package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloseoutPackage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /estimates/{estimateId}/bom:
+    get:
+      operationId: getEstimateBom
+      tags: [estimates]
+      summary: Get an estimate's bill of materials
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      responses:
+        "200":
+          description: The estimate's BOM (empty assemblies list when none)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateBomView"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}/bom/parse:
+    post:
+      operationId: parseEstimateBomFile
+      tags: [estimates]
+      summary: Parse a KISS file for estimate BOM import preview
+      description: >
+        Parses a KISS (.kss) file and returns the assemblies plus a material
+        match report against the shared material catalog. Nothing is saved.
+        Materials that cannot be confidently matched are flagged and must be
+        explicitly resolved before commit.
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/BomUploadForm"
+      responses:
+        "200":
+          description: Parsed preview with catalog match report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateBomImportPreview"
+        "400":
+          description: Invalid or malformed KISS file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}/bom/import:
+    post:
+      operationId: commitEstimateBomImport
+      tags: [estimates]
+      summary: Commit a reviewed KISS import as the estimate's BOM
+      description: >
+        Replaces the estimate's BOM with the supplied assemblies. Every
+        distinct material must carry an explicit resolution (catalog match,
+        needs-quote, or manual price) — unresolved materials are rejected,
+        never silently guessed.
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateBomCommitInput"
+      responses:
+        "201":
+          description: Imported BOM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateBomView"
+        "400":
+          description: Unresolved materials or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}/bom/assemblies:
+    post:
+      operationId: createEstimateBomAssembly
+      tags: [estimates]
+      summary: Add an assembly to the estimate BOM manually
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateBomAssemblyInput"
+      responses:
+        "201":
+          description: Created assembly
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateBomAssembly"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimate-bom/assemblies/{assemblyId}:
+    patch:
+      operationId: updateEstimateBomAssembly
+      tags: [estimates]
+      summary: Update an estimate BOM assembly
+      parameters:
+        - $ref: "#/components/parameters/EstimateBomAssemblyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateBomAssemblyUpdate"
+      responses:
+        "200":
+          description: Updated assembly
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateBomAssembly"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteEstimateBomAssembly
+      tags: [estimates]
+      summary: Delete an estimate BOM assembly
+      parameters:
+        - $ref: "#/components/parameters/EstimateBomAssemblyId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimate-bom/assemblies/{assemblyId}/parts:
+    post:
+      operationId: createEstimateBomPart
+      tags: [estimates]
+      summary: Add a part to an estimate BOM assembly
+      parameters:
+        - $ref: "#/components/parameters/EstimateBomAssemblyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateBomPartInput"
+      responses:
+        "201":
+          description: Created part
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateBomPart"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimate-bom/parts/{partId}:
+    patch:
+      operationId: updateEstimateBomPart
+      tags: [estimates]
+      summary: Update an estimate BOM part (fields or pricing resolution)
+      parameters:
+        - $ref: "#/components/parameters/EstimateBomPartId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateBomPartUpdate"
+      responses:
+        "200":
+          description: Updated part
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateBomPart"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteEstimateBomPart
+      tags: [estimates]
+      summary: Delete an estimate BOM part
+      parameters:
+        - $ref: "#/components/parameters/EstimateBomPartId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}/rfq:
+    get:
+      operationId: getEstimateRfq
+      tags: [estimates]
+      summary: RFQ list for unmatched / needs-quote materials
+      description: >
+        Returns the request-for-quote list for the estimate — every material
+        marked needs-quote plus misc/hardware items (misc items are never
+        filtered out). Use the CSV export endpoint for a downloadable file.
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      responses:
+        "200":
+          description: RFQ items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RfqItemList"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}/pricing:
+    get:
+      operationId: getEstimatePricing
+      tags: [estimates]
+      summary: Pricing rollup (material + labor + margin)
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      responses:
+        "200":
+          description: Pricing summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimatePricingSummary"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimates/{estimateId}/labor-lines:
+    get:
+      operationId: listEstimateLaborLines
+      tags: [estimates]
+      summary: List labor lines for an estimate
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      responses:
+        "200":
+          description: Labor lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateLaborLineList"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createEstimateLaborLine
+      tags: [estimates]
+      summary: Add a labor line
+      description: >
+        Adds a labor line. When hourlyRate is omitted, the company's
+        configured rate for the trade is used (0 if none configured).
+      parameters:
+        - $ref: "#/components/parameters/EstimateId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateLaborLineInput"
+      responses:
+        "201":
+          description: Created labor line
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateLaborLine"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /estimate-labor-lines/{lineId}:
+    patch:
+      operationId: updateEstimateLaborLine
+      tags: [estimates]
+      summary: Update a labor line
+      parameters:
+        - $ref: "#/components/parameters/EstimateLaborLineId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateLaborLineUpdate"
+      responses:
+        "200":
+          description: Updated labor line
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateLaborLine"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteEstimateLaborLine
+      tags: [estimates]
+      summary: Delete a labor line
+      parameters:
+        - $ref: "#/components/parameters/EstimateLaborLineId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /labor-rates:
+    get:
+      operationId: listLaborRates
+      tags: [estimates]
+      summary: List the company's configured labor rates
+      responses:
+        "200":
+          description: Labor rates for the caller's company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LaborRateList"
+    post:
+      operationId: createLaborRate
+      tags: [estimates]
+      summary: Add a labor rate for a trade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LaborRateInput"
+      responses:
+        "201":
+          description: Created labor rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LaborRate"
+        "409":
+          description: A rate for this trade already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /labor-rates/{rateId}:
+    patch:
+      operationId: updateLaborRate
+      tags: [estimates]
+      summary: Update a labor rate
+      parameters:
+        - $ref: "#/components/parameters/LaborRateId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LaborRateUpdate"
+      responses:
+        "200":
+          description: Updated labor rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LaborRate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteLaborRate
+      tags: [estimates]
+      summary: Delete a labor rate
+      parameters:
+        - $ref: "#/components/parameters/LaborRateId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /purchase-orders/{poId}/receiving:
+    get:
+      operationId: listPoReceivingRecords
+      tags: [inventory]
+      summary: List receiving records for a purchase order
+      parameters:
+        - $ref: "#/components/parameters/PoId"
+      responses:
+        "200":
+          description: Receiving records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReceivingRecord"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createReceivingRecord
+      tags: [inventory]
+      summary: Record a receiving event against a purchase order
+      description: >
+        Captures one delivery. Every line requires a heat/lot number and a
+        CMTR document reference at receiving time — they cannot be filled in
+        later. Each received line creates an available inventory item
+        allocated to the PO's job and logs a costed material movement.
+      parameters:
+        - $ref: "#/components/parameters/PoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceivingRecordInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivingRecord"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /inventory:
+    get:
+      operationId: listInventoryItems
+      tags: [inventory]
+      summary: List inventory items (stock and remnants)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/InventoryStatus"
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: jobId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Inventory items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+    post:
+      operationId: createInventoryItem
+      tags: [inventory]
+      summary: Add an inventory item manually (general stock without a receiving record)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /inventory/{itemId}/consume:
+    post:
+      operationId: consumeInventoryItem
+      tags: [inventory]
+      summary: Consume inventory on a job
+      description: >
+        Consumes pieces from an available inventory item against a job
+        (optionally a specific BOM part). Cross-job consumption is allowed and
+        preserves the original heat/vendor/PO/CMTR traceability chain. A
+        remnant can be cut back into stock in the same operation; it carries
+        the original receiving-line reference forward.
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryConsumeInput"
+      responses:
+        "200":
+          description: Updated inventory item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Item is not available or has insufficient quantity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /inventory/{itemId}/transfer:
+    post:
+      operationId: transferInventoryItem
+      tags: [inventory]
+      summary: Transfer an inventory item between jobs or to general stock
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryTransferInput"
+      responses:
+        "200":
+          description: Updated inventory item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Item cannot be transferred in its current status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /inventory/{itemId}/commit:
+    post:
+      operationId: commitInventoryItem
+      tags: [inventory]
+      summary: Commit an inventory item to a job (reserve it so other jobs can't plan it)
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryCommitInput"
+      responses:
+        "200":
+          description: Updated inventory item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Item is already consumed or committed to another job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /inventory/{itemId}/uncommit:
+    post:
+      operationId: uncommitInventoryItem
+      tags: [inventory]
+      summary: Release a commitment, returning the item to available status
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Updated inventory item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Item is not committed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/heat-sheet:
+    get:
+      operationId: getJobHeatSheet
+      tags: [inventory]
+      summary: Job Heat Sheet — relational traceability per consumption
+      description: >
+        Assembly → part → inventory item → receiving line → CMTR/PO/vendor for
+        every consumption charged to the job, including remnants originally
+        received against other jobs (original references carried forward).
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Heat sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobHeatSheet"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/stock-matches:
+    get:
+      operationId: getJobStockMatches
+      tags: [inventory]
+      summary: On-hand stock matching the job's BOM material needs
+      description: >
+        For each material rolled up from the job's BOM, lists matching
+        available inventory so buyers can use stock before creating a new PO.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Stock matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockMatch"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /reports/material-movements:
+    get:
+      operationId: getMaterialMovementsReport
+      tags: [inventory]
+      summary: Monthly material-movement report (cost per job)
+      description: >
+        All material movements in the given month with cost, plus per-job
+        totals — the export that replaces manual ComputerEase reconstruction.
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Calendar month, YYYY-MM
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+      responses:
+        "200":
+          description: Material movements for the month
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaterialMovementsReport"
+        "400":
+          description: Invalid month
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /reports/inventory-trend:
+    get:
+      operationId: getInventoryTrendReport
+      tags: [inventory]
+      summary: Inventory cost/usage trend by month
+      parameters:
+        - name: months
+          in: query
+          description: Number of trailing months (default 12)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trend points, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryTrendPoint"
+
+  /ncrs:
+    get:
+      operationId: listNcrs
+      tags: [qc]
+      summary: List nonconformance reports
+      parameters:
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, closed]
+      responses:
+        "200":
+          description: NCRs, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ncr"
+    post:
+      operationId: createNcr
+      tags: [qc]
+      summary: Create a nonconformance report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NcrInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ncr"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /ncrs/{ncrId}:
+    patch:
+      operationId: updateNcr
+      tags: [qc]
+      summary: Update an NCR (disposition, root cause, approval, closure)
+      description: >
+        Closing an NCR requires a disposition. Approval stamps the caller
+        as approver.
+      parameters:
+        - name: ncrId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NcrUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ncr"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /substitution-requests:
+    get:
+      operationId: listSubstitutionRequests
+      tags: [qc]
+      summary: List material substitution requests
+      parameters:
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        "200":
+          description: Substitution requests, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SubstitutionRequest"
+    post:
+      operationId: createSubstitutionRequest
+      tags: [qc]
+      summary: Create a substitution request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubstitutionRequestInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubstitutionRequest"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /substitution-requests/{requestId}:
+    patch:
+      operationId: updateSubstitutionRequest
+      tags: [qc]
+      summary: Update / approve / reject a substitution request
+      description: >
+        Approval is blocked for customer-specified or safety-critical
+        substitutions until customer concurrence is recorded.
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubstitutionRequestUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubstitutionRequest"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Gate violation (customer concurrence required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{jobId}/shipments:
+    get:
+      operationId: listJobShipments
+      tags: [shipping]
+      summary: List shipments for a job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Shipments, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shipment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createShipment
+      tags: [shipping]
+      summary: Create a shipment from Ready-to-Ship assemblies
+      description: >
+        Every assembly must be Ready to Ship (current stage Inspected and not
+        on hold) and not already on another open shipment. Shipper number is
+        assigned as [job#]-S[NN].
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShipmentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: An assembly is not Ready to Ship
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /shipments/{shipmentId}:
+    get:
+      operationId: getShipment
+      tags: [shipping]
+      summary: Get a shipment
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      responses:
+        "200":
+          description: Shipment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteShipment
+      tags: [shipping]
+      summary: Delete a planned (not departed) shipment
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Departed shipments cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /shipments/{shipmentId}/notification:
+    post:
+      operationId: createShipmentNotification
+      tags: [shipping]
+      summary: Record the written shipment notification
+      description: >
+        Required before BOL/packing-slip paperwork can be generated. One
+        notification per shipment.
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShipmentNotificationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Notification already recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /shipments/{shipmentId}/load-confirmation:
+    post:
+      operationId: createLoadConfirmation
+      tags: [shipping]
+      summary: Record the signed load confirmation
+      description: Required before a shipment can be marked departed.
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoadConfirmationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Load confirmation already recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /shipments/{shipmentId}/depart:
+    post:
+      operationId: departShipment
+      tags: [shipping]
+      summary: Mark a shipment departed
+      description: >
+        Hard gate — requires a signed load confirmation. Moves every assembly
+        on the shipment to the Shipped stage.
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      responses:
+        "200":
+          description: Departed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Gate violation (no signed load confirmation)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   parameters:
+    DrawingId:
+      name: drawingId
+      in: path
+      required: true
+      schema:
+        type: integer
+    RevisionId:
+      name: revisionId
+      in: path
+      required: true
+      schema:
+        type: integer
+    RfiId:
+      name: rfiId
+      in: path
+      required: true
+      schema:
+        type: integer
+    EcnId:
+      name: ecnId
+      in: path
+      required: true
+      schema:
+        type: integer
     PoId:
       name: poId
+      in: path
+      required: true
+      schema:
+        type: integer
+    ShipmentId:
+      name: shipmentId
       in: path
       required: true
       schema:
@@ -1718,6 +3919,24 @@ components:
       required: true
       schema:
         type: integer
+    VendorId:
+      name: vendorId
+      in: path
+      required: true
+      schema:
+        type: integer
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: integer
+    ClauseId:
+      name: clauseId
+      in: path
+      required: true
+      schema:
+        type: integer
     DocumentId:
       name: documentId
       in: path
@@ -1748,7 +3967,365 @@ components:
       required: true
       schema:
         type: integer
+    EstimateBomAssemblyId:
+      name: assemblyId
+      in: path
+      required: true
+      schema:
+        type: integer
+    EstimateBomPartId:
+      name: partId
+      in: path
+      required: true
+      schema:
+        type: integer
+    EstimateLaborLineId:
+      name: lineId
+      in: path
+      required: true
+      schema:
+        type: integer
+    LaborRateId:
+      name: rateId
+      in: path
+      required: true
+      schema:
+        type: integer
   schemas:
+    Ncr:
+      type: object
+      required:
+        - id
+        - number
+        - source
+        - description
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        number:
+          type: string
+        source:
+          type: string
+          enum: [receiving, in_process, final, post_delivery]
+        description:
+          type: string
+        jobId:
+          type: ["integer", "null"]
+        jobNumber:
+          type: ["string", "null"]
+        assemblyId:
+          type: ["integer", "null"]
+        assemblyMark:
+          type: ["string", "null"]
+        purchaseOrderId:
+          type: ["integer", "null"]
+        poNumber:
+          type: ["string", "null"]
+        disposition:
+          type: ["string", "null"]
+          enum: [rework, scrap, accept_with_deviation, null]
+        dispositionNotes:
+          type: ["string", "null"]
+        rootCause:
+          type: ["string", "null"]
+        approvedBy:
+          type: ["integer", "null"]
+        approvedByName:
+          type: ["string", "null"]
+        approvedAt:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, closed]
+        closedAt:
+          type: ["string", "null"]
+        createdByName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    NcrInput:
+      type: object
+      required: [source, description]
+      properties:
+        source:
+          type: string
+          enum: [receiving, in_process, final, post_delivery]
+        description:
+          type: string
+          minLength: 1
+        jobId:
+          type: ["integer", "null"]
+        assemblyId:
+          type: ["integer", "null"]
+        purchaseOrderId:
+          type: ["integer", "null"]
+
+    NcrUpdate:
+      type: object
+      properties:
+        description:
+          type: string
+        disposition:
+          type: ["string", "null"]
+          enum: [rework, scrap, accept_with_deviation, null]
+        dispositionNotes:
+          type: ["string", "null"]
+        rootCause:
+          type: ["string", "null"]
+        approve:
+          type: boolean
+          description: Stamp the caller as approver
+        close:
+          type: boolean
+          description: Close the NCR (requires a disposition)
+        reopen:
+          type: boolean
+
+    SubstitutionRequest:
+      type: object
+      required:
+        - id
+        - number
+        - originalSpec
+        - proposedSubstitution
+        - type
+        - engineeringRationale
+        - customerSpecified
+        - safetyCritical
+        - customerConcurrence
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        number:
+          type: string
+        jobId:
+          type: ["integer", "null"]
+        jobNumber:
+          type: ["string", "null"]
+        assemblyId:
+          type: ["integer", "null"]
+        assemblyMark:
+          type: ["string", "null"]
+        originalSpec:
+          type: string
+        proposedSubstitution:
+          type: string
+        type:
+          type: string
+          enum: [like_for_like, equivalent, upgrade, downgrade]
+        engineeringRationale:
+          type: string
+        customerSpecified:
+          type: boolean
+        safetyCritical:
+          type: boolean
+        customerConcurrence:
+          type: boolean
+        concurrenceReference:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        approvedBy:
+          type: ["integer", "null"]
+        approvedByName:
+          type: ["string", "null"]
+        approvedAt:
+          type: ["string", "null"]
+        executionReference:
+          type: ["string", "null"]
+        createdByName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    SubstitutionRequestInput:
+      type: object
+      required: [originalSpec, proposedSubstitution, type, engineeringRationale]
+      properties:
+        originalSpec:
+          type: string
+          minLength: 1
+        proposedSubstitution:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [like_for_like, equivalent, upgrade, downgrade]
+        engineeringRationale:
+          type: string
+          minLength: 1
+        jobId:
+          type: ["integer", "null"]
+        assemblyId:
+          type: ["integer", "null"]
+        customerSpecified:
+          type: boolean
+        safetyCritical:
+          type: boolean
+
+    SubstitutionRequestUpdate:
+      type: object
+      properties:
+        customerConcurrence:
+          type: boolean
+        concurrenceReference:
+          type: ["string", "null"]
+        executionReference:
+          type: ["string", "null"]
+        approve:
+          type: boolean
+        reject:
+          type: boolean
+
+    ShipmentAssembly:
+      type: object
+      required: [assemblyId, mark, quantity, readyToShip]
+      properties:
+        assemblyId:
+          type: integer
+        mark:
+          type: string
+        quantity:
+          type: integer
+        description:
+          type: ["string", "null"]
+        currentStage:
+          type: ["string", "null"]
+        onHold:
+          type: boolean
+        readyToShip:
+          type: boolean
+
+    ShipmentNotification:
+      type: object
+      required: [id, proposedShipDate, carrier, createdAt]
+      properties:
+        id:
+          type: integer
+        proposedShipDate:
+          type: string
+        carrier:
+          type: string
+        notes:
+          type: ["string", "null"]
+        notifiedByName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    LoadConfirmation:
+      type: object
+      required: [id, signedBy, signedAt]
+      properties:
+        id:
+          type: integer
+        signedBy:
+          type: string
+        signedAt:
+          type: string
+        discrepancyNotes:
+          type: ["string", "null"]
+
+    Shipment:
+      type: object
+      required:
+        - id
+        - jobId
+        - shipperNumber
+        - status
+        - assemblies
+        - paperworkReady
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        shipperNumber:
+          type: string
+        carrier:
+          type: ["string", "null"]
+        pickupInfo:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [planned, departed]
+        departedAt:
+          type: ["string", "null"]
+        assemblies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShipmentAssembly"
+        notification:
+          oneOf:
+            - $ref: "#/components/schemas/ShipmentNotification"
+            - type: "null"
+        loadConfirmation:
+          oneOf:
+            - $ref: "#/components/schemas/LoadConfirmation"
+            - type: "null"
+        paperworkReady:
+          type: boolean
+          description: True once the shipment notification has been recorded
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ShipmentInput:
+      type: object
+      required: [assemblyIds]
+      properties:
+        assemblyIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+        carrier:
+          type: ["string", "null"]
+        pickupInfo:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    ShipmentNotificationInput:
+      type: object
+      required: [proposedShipDate, carrier]
+      properties:
+        proposedShipDate:
+          type: string
+          minLength: 1
+        carrier:
+          type: string
+          minLength: 1
+        notes:
+          type: ["string", "null"]
+
+    LoadConfirmationInput:
+      type: object
+      required: [signedBy]
+      properties:
+        signedBy:
+          type: string
+          minLength: 1
+        discrepancyNotes:
+          type: ["string", "null"]
+
     HealthStatus:
       type: object
       properties:
@@ -1914,6 +4491,9 @@ components:
         - name
         - customer
         - status
+        - type
+        - marginPercent
+        - quoteFormat
         - estimatedHours
         - jobId
         - jobNumber
@@ -1931,6 +4511,19 @@ components:
         status:
           type: string
           enum: [draft, submitted, won, lost]
+        type:
+          type: string
+          enum: [preliminary, detailed]
+          description: >-
+            Internal values only — user-facing labels come from a swappable
+            display constant (see OPEN_QUESTIONS.md).
+        marginPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        quoteFormat:
+          type: string
+          enum: [itemized, summary]
         estimatedHours:
           type: number
         amount:
@@ -1969,6 +4562,16 @@ components:
         status:
           type: string
           enum: [draft, submitted, lost]
+        type:
+          type: string
+          enum: [preliminary, detailed]
+        marginPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        quoteFormat:
+          type: string
+          enum: [itemized, summary]
         estimatedHours:
           type: number
         amount:
@@ -1992,6 +4595,16 @@ components:
         status:
           type: string
           enum: [draft, submitted, lost]
+        type:
+          type: string
+          enum: [preliminary, detailed]
+        marginPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        quoteFormat:
+          type: string
+          enum: [itemized, summary]
         estimatedHours:
           type: number
         amount:
@@ -2393,6 +5006,7 @@ components:
           type: [string, "null"]
         quantity:
           type: integer
+          minimum: 1
         profileType:
           type: [string, "null"]
         profileSize:
@@ -2416,6 +5030,7 @@ components:
           type: string
         quantity:
           type: integer
+          minimum: 1
         description:
           type: [string, "null"]
         finish:
@@ -2870,7 +5485,7 @@ components:
 
     PurchaseOrderLine:
       type: object
-      required: [id, pieces]
+      required: [id, pieces, qualityClauseIds, receivedPieces, remainingPieces, receiptStatus]
       properties:
         id:
           type: integer
@@ -2885,6 +5500,29 @@ components:
         lengthIn:
           type: ["number", "null"]
           description: Total length in inches for this line
+        unitPrice:
+          type: ["number", "null"]
+          description: Price per piece
+        extendedPrice:
+          type: ["number", "null"]
+          description: unitPrice * pieces, computed by the server
+        promiseDate:
+          type: ["string", "null"]
+          description: Vendor promise date (YYYY-MM-DD)
+        qualityClauseIds:
+          type: array
+          items:
+            type: integer
+        receivedPieces:
+          type: integer
+          description: Total pieces received against this PO line across all receiving records
+        remainingPieces:
+          type: integer
+          description: Ordered pieces minus received pieces; negative means over-receipt
+        receiptStatus:
+          type: string
+          enum: [not_received, partial, complete, over]
+          description: Receipt status derived from ordered vs received pieces
 
     PurchaseOrderLineInput:
       type: object
@@ -2902,6 +5540,16 @@ components:
         lengthIn:
           type: ["number", "null"]
           description: Total length in inches for this line
+        unitPrice:
+          type: ["number", "null"]
+          minimum: 0
+        promiseDate:
+          type: ["string", "null"]
+          description: Vendor promise date (YYYY-MM-DD)
+        qualityClauseIds:
+          type: array
+          items:
+            type: integer
 
     PurchaseOrder:
       type: object
@@ -2934,6 +5582,20 @@ components:
           $ref: "#/components/schemas/PurchaseOrderStatus"
         reviewComment:
           type: ["string", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        vendorName:
+          type: ["string", "null"]
+        vendorStatus:
+          type: ["string", "null"]
+        vendorExceptionJustification:
+          type: ["string", "null"]
+        revision:
+          type: integer
+          description: Change-order revision number (0 = original issue)
+        totalAmount:
+          type: ["number", "null"]
+          description: Sum of extended line prices; null when no line is priced
         lineCount:
           type: integer
         totalPieces:
@@ -2977,6 +5639,25 @@ components:
           $ref: "#/components/schemas/PurchaseOrderStatus"
         reviewComment:
           type: ["string", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        vendorName:
+          type: ["string", "null"]
+        vendorStatus:
+          type: ["string", "null"]
+        vendorExceptionJustification:
+          type: ["string", "null"]
+        revision:
+          type: integer
+        totalAmount:
+          type: ["number", "null"]
+        qualityClauseIds:
+          type: array
+          items:
+            type: integer
+          description: PO-level quality clause ids
+        approval:
+          $ref: "#/components/schemas/PurchaseOrderApprovalInfo"
         lineCount:
           type: integer
         totalPieces:
@@ -2992,14 +5673,270 @@ components:
           type: string
           format: date-time
 
+    PurchaseOrderApprovalInfo:
+      type: object
+      required: [requiresApproval]
+      properties:
+        requiresApproval:
+          type: boolean
+        requiredRole:
+          type: ["string", "null"]
+        thresholdLabel:
+          type: ["string", "null"]
+
     PurchaseOrderInput:
       type: object
-      required: [lines]
+      required: [lines, vendorId]
       properties:
+        vendorId:
+          type: integer
+          description: Required — a PO cannot be created without a vendor.
+        vendorExceptionJustification:
+          type: ["string", "null"]
+          description: >
+            Required when the vendor is not Approved/Conditional on the AVL.
+        qualityClauseIds:
+          type: array
+          items:
+            type: integer
+          description: PO-level quality clause ids
         lines:
           type: array
           items:
             $ref: "#/components/schemas/PurchaseOrderLineInput"
+
+    PurchaseOrderUpdate:
+      type: object
+      required: [lines]
+      properties:
+        vendorId:
+          type: integer
+        vendorExceptionJustification:
+          type: ["string", "null"]
+        qualityClauseIds:
+          type: array
+          items:
+            type: integer
+        revisionNote:
+          type: ["string", "null"]
+          description: >
+            Change-order note; used when editing a PO past Draft, which
+            captures a numbered revision.
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PurchaseOrderLineInput"
+
+    PurchaseOrderRevision:
+      type: object
+      required: [id, revisionNumber, snapshot, createdAt]
+      properties:
+        id:
+          type: integer
+        revisionNumber:
+          type: integer
+        note:
+          type: ["string", "null"]
+        createdBy:
+          type: ["integer", "null"]
+        createdByName:
+          type: ["string", "null"]
+        snapshot: {}
+        createdAt:
+          type: string
+          format: date-time
+
+    DueInLine:
+      type: object
+      required:
+        [poId, poNumber, poStatus, jobId, jobNumber, lineId, pieces, dueStatus, receivedPieces, remainingPieces, receiptStatus]
+      properties:
+        poId:
+          type: integer
+        poNumber:
+          type: string
+        poStatus:
+          $ref: "#/components/schemas/PurchaseOrderStatus"
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        vendorName:
+          type: ["string", "null"]
+        lineId:
+          type: integer
+        description:
+          type: string
+        pieces:
+          type: integer
+          description: Ordered quantity
+        promiseDate:
+          type: ["string", "null"]
+        dueStatus:
+          type: string
+          enum: [overdue, due_soon, ok, no_date]
+        receivedPieces:
+          type: integer
+          description: Total pieces received so far
+        remainingPieces:
+          type: integer
+          description: Ordered minus received; negative means over-receipt
+        receiptStatus:
+          type: string
+          enum: [not_received, partial, complete, over]
+
+    Vendor:
+      type: object
+      required: [id, name, status, coiLapsed, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        categoryId:
+          type: ["integer", "null"]
+        categoryName:
+          type: ["string", "null"]
+        status:
+          $ref: "#/components/schemas/VendorStatus"
+        scopeOfApproval:
+          type: ["string", "null"]
+        coiExpiration:
+          type: ["string", "null"]
+          description: YYYY-MM-DD
+        coiLapsed:
+          type: boolean
+          description: True when coiExpiration is in the past
+        contactName:
+          type: ["string", "null"]
+        contactEmail:
+          type: ["string", "null"]
+        contactPhone:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    VendorStatus:
+      type: string
+      enum: [conditional, approved, suspended, disqualified]
+
+    VendorInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        categoryId:
+          type: ["integer", "null"]
+        status:
+          $ref: "#/components/schemas/VendorStatus"
+        scopeOfApproval:
+          type: ["string", "null"]
+        coiExpiration:
+          type: ["string", "null"]
+        contactName:
+          type: ["string", "null"]
+        contactEmail:
+          type: ["string", "null"]
+        contactPhone:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    VendorCategory:
+      type: object
+      required: [id, name, sortIndex]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sortIndex:
+          type: integer
+
+    VendorCategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        sortIndex:
+          type: integer
+
+    QualityClause:
+      type: object
+      required: [id, code, title, active]
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        active:
+          type: boolean
+
+    QualityClauseInput:
+      type: object
+      required: [code, title]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+        active:
+          type: boolean
+
+    ApprovalThreshold:
+      type: object
+      required: [id, minTotal, label]
+      properties:
+        id:
+          type: integer
+        minTotal:
+          type: number
+        label:
+          type: string
+        requiredRole:
+          type: ["string", "null"]
+
+    ApprovalThresholdTierInput:
+      type: object
+      required: [minTotal, label]
+      properties:
+        minTotal:
+          type: number
+          minimum: 0
+        label:
+          type: string
+          minLength: 1
+        requiredRole:
+          type: ["string", "null"]
+
+    ApprovalThresholdMatrixInput:
+      type: object
+      required: [tiers]
+      properties:
+        tiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalThresholdTierInput"
 
     PurchaseOrderStatusInput:
       type: object
@@ -3011,3 +5948,1650 @@ components:
         comment:
           type: ["string", "null"]
           description: Optional PM review comment (used on approve/reject)
+
+    DrawingRevisionStatus:
+      type: string
+      enum:
+        [
+          issued_for_approval,
+          approved,
+          approved_as_noted,
+          rejected_revise_resubmit,
+          issued_for_fabrication,
+          as_built_final,
+        ]
+
+    DrawingAckRecord:
+      type: object
+      required: [userId, userName, acknowledgedAt]
+      properties:
+        userId:
+          type: integer
+        userName:
+          type: string
+        acknowledgedAt:
+          type: string
+          format: date-time
+
+    DrawingRevision:
+      type: object
+      required:
+        - id
+        - drawingId
+        - revisionLabel
+        - status
+        - isActive
+        - changeSummary
+        - documentId
+        - documentFilename
+        - issuedBy
+        - issuedByName
+        - supersededAt
+        - createdAt
+        - acknowledgedByMe
+      properties:
+        id:
+          type: integer
+        drawingId:
+          type: integer
+        revisionLabel:
+          type: string
+        status:
+          $ref: "#/components/schemas/DrawingRevisionStatus"
+        isActive:
+          type: boolean
+        changeSummary:
+          type: ["string", "null"]
+        documentId:
+          type: integer
+        documentFilename:
+          type: string
+        issuedBy:
+          type: ["integer", "null"]
+        issuedByName:
+          type: ["string", "null"]
+        supersededAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        acknowledgedByMe:
+          type: boolean
+        acknowledgments:
+          type: array
+          items:
+            $ref: "#/components/schemas/DrawingAckRecord"
+
+    Drawing:
+      type: object
+      required: [id, jobId, drawingNumber, description, createdAt]
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        drawingNumber:
+          type: string
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    DrawingListItem:
+      allOf:
+        - $ref: "#/components/schemas/Drawing"
+        - type: object
+          required: [revisionCount, activeRevision, ackRequired]
+          properties:
+            revisionCount:
+              type: integer
+            activeRevision:
+              oneOf:
+                - $ref: "#/components/schemas/DrawingRevision"
+                - type: "null"
+            ackRequired:
+              type: boolean
+              description: True when the active revision has not been acknowledged by the caller
+
+    DrawingDetail:
+      allOf:
+        - $ref: "#/components/schemas/Drawing"
+        - type: object
+          required: [revisions]
+          properties:
+            revisions:
+              type: array
+              items:
+                $ref: "#/components/schemas/DrawingRevision"
+
+    DrawingUploadForm:
+      type: object
+      required: [file, drawingNumber]
+      properties:
+        file:
+          type: string
+          format: binary
+        drawingNumber:
+          type: string
+        description:
+          type: string
+        revisionLabel:
+          type: string
+          description: Defaults to "0"
+        status:
+          $ref: "#/components/schemas/DrawingRevisionStatus"
+
+    DrawingRevisionUploadForm:
+      type: object
+      required: [file, revisionLabel]
+      properties:
+        file:
+          type: string
+          format: binary
+        revisionLabel:
+          type: string
+        changeSummary:
+          type: string
+          description: Required when superseding an existing Active revision
+        status:
+          $ref: "#/components/schemas/DrawingRevisionStatus"
+
+    DrawingRevisionStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/DrawingRevisionStatus"
+
+    DrawingAcknowledgment:
+      type: object
+      required: [id, userId, drawingRevisionId, acknowledgedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        drawingRevisionId:
+          type: integer
+        acknowledgedAt:
+          type: string
+          format: date-time
+
+    RfiStatus:
+      type: string
+      enum: [open, pending, closed]
+
+    Rfi:
+      type: object
+      required:
+        - id
+        - number
+        - jobId
+        - drawingId
+        - drawingRevisionId
+        - question
+        - submittedBy
+        - submittedByName
+        - directedTo
+        - dueDate
+        - status
+        - responseText
+        - responseDate
+        - createdAt
+      properties:
+        id:
+          type: integer
+        number:
+          type: string
+        jobId:
+          type: integer
+        drawingId:
+          type: ["integer", "null"]
+        drawingRevisionId:
+          type: ["integer", "null"]
+        question:
+          type: string
+        submittedBy:
+          type: ["integer", "null"]
+        submittedByName:
+          type: ["string", "null"]
+        directedTo:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        status:
+          $ref: "#/components/schemas/RfiStatus"
+        responseText:
+          type: ["string", "null"]
+        responseDate:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    RfiInput:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+        drawingId:
+          type: ["integer", "null"]
+        drawingRevisionId:
+          type: ["integer", "null"]
+        directedTo:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+
+    RfiUpdate:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/RfiStatus"
+        responseText:
+          type: ["string", "null"]
+        responseDate:
+          type: ["string", "null"]
+        directedTo:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+
+    EcnSource:
+      type: string
+      enum: [customer, internal, field]
+
+    EcnDisposition:
+      type: string
+      enum: [rework, scrap, fabricate_to_new_rev, no_impact]
+
+    EcnStatus:
+      type: string
+      enum: [open, approved, closed]
+
+    Ecn:
+      type: object
+      required:
+        - id
+        - number
+        - jobId
+        - source
+        - description
+        - affectedWork
+        - costImpact
+        - scheduleImpact
+        - disposition
+        - status
+        - approvedBy
+        - approvedByName
+        - approvedAt
+        - closedAt
+        - createdAt
+        - affectedRevisionIds
+      properties:
+        id:
+          type: integer
+        number:
+          type: string
+        jobId:
+          type: integer
+        source:
+          $ref: "#/components/schemas/EcnSource"
+        description:
+          type: string
+        affectedWork:
+          type: ["string", "null"]
+        costImpact:
+          type: ["string", "null"]
+        scheduleImpact:
+          type: ["string", "null"]
+        disposition:
+          oneOf:
+            - $ref: "#/components/schemas/EcnDisposition"
+            - type: "null"
+        status:
+          $ref: "#/components/schemas/EcnStatus"
+        approvedBy:
+          type: ["integer", "null"]
+        approvedByName:
+          type: ["string", "null"]
+        approvedAt:
+          type: ["string", "null"]
+          format: date-time
+        closedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        affectedRevisionIds:
+          type: array
+          items:
+            type: integer
+
+    EcnInput:
+      type: object
+      required: [source, description]
+      properties:
+        source:
+          $ref: "#/components/schemas/EcnSource"
+        description:
+          type: string
+        affectedWork:
+          type: ["string", "null"]
+        costImpact:
+          type: ["string", "null"]
+        scheduleImpact:
+          type: ["string", "null"]
+        disposition:
+          oneOf:
+            - $ref: "#/components/schemas/EcnDisposition"
+            - type: "null"
+        affectedRevisionIds:
+          type: array
+          items:
+            type: integer
+
+    EcnUpdate:
+      type: object
+      properties:
+        description:
+          type: string
+        affectedWork:
+          type: ["string", "null"]
+        costImpact:
+          type: ["string", "null"]
+        scheduleImpact:
+          type: ["string", "null"]
+        disposition:
+          oneOf:
+            - $ref: "#/components/schemas/EcnDisposition"
+            - type: "null"
+        status:
+          $ref: "#/components/schemas/EcnStatus"
+        affectedRevisionIds:
+          type: array
+          items:
+            type: integer
+
+    TransmittalPurpose:
+      type: string
+      enum: [for_approval, for_record, for_construction, for_information, other]
+
+    TransmittalItem:
+      type: object
+      required: [id, documentId, drawingRevisionId, label]
+      properties:
+        id:
+          type: integer
+        documentId:
+          type: ["integer", "null"]
+        drawingRevisionId:
+          type: ["integer", "null"]
+        label:
+          type: string
+          description: Human-readable name (filename or drawing number + rev)
+
+    Transmittal:
+      type: object
+      required:
+        - id
+        - jobId
+        - sentDate
+        - senderId
+        - senderName
+        - recipient
+        - purpose
+        - notes
+        - createdAt
+        - items
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        sentDate:
+          type: string
+        senderId:
+          type: ["integer", "null"]
+        senderName:
+          type: ["string", "null"]
+        recipient:
+          type: string
+        purpose:
+          $ref: "#/components/schemas/TransmittalPurpose"
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransmittalItem"
+
+    TransmittalItemInput:
+      type: object
+      properties:
+        documentId:
+          type: integer
+        drawingRevisionId:
+          type: integer
+
+    TransmittalInput:
+      type: object
+      required: [sentDate, recipient, purpose, items]
+      properties:
+        sentDate:
+          type: string
+        recipient:
+          type: string
+        purpose:
+          $ref: "#/components/schemas/TransmittalPurpose"
+        notes:
+          type: ["string", "null"]
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/TransmittalItemInput"
+
+    CloseoutDrawing:
+      type: object
+      required: [drawingId, drawingNumber, description, revision]
+      properties:
+        drawingId:
+          type: integer
+        drawingNumber:
+          type: string
+        description:
+          type: ["string", "null"]
+        revision:
+          $ref: "#/components/schemas/DrawingRevision"
+
+    CloseoutPackage:
+      type: object
+      required: [jobId, asBuiltDrawings, totalDrawings, asBuiltCount]
+      properties:
+        jobId:
+          type: integer
+        totalDrawings:
+          type: integer
+        asBuiltCount:
+          type: integer
+        asBuiltDrawings:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloseoutDrawing"
+
+    InventoryStatus:
+      type: string
+      enum: [available, committed, consumed]
+
+    MovementType:
+      type: string
+      enum: [purchased, received, consumed, transferred]
+
+    ReceivingLineInput:
+      type: object
+      required: [heatNumber, cmtrDocumentId, pieces]
+      properties:
+        purchaseOrderLineId:
+          type: ["integer", "null"]
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        heatNumber:
+          type: string
+          minLength: 1
+        cmtrDocumentId:
+          type: integer
+          description: CMTR/MTR document id (required at receiving)
+        pieces:
+          type: integer
+          minimum: 1
+        lengthIn:
+          type: ["number", "null"]
+        unitCost:
+          type: ["number", "null"]
+          description: Cost per piece; defaults from the PO line unit price
+        discrepancyNotes:
+          type: ["string", "null"]
+
+    ReceivingRecordInput:
+      type: object
+      required: [receivedDate, lines]
+      properties:
+        receivedDate:
+          type: string
+          format: date
+        notes:
+          type: ["string", "null"]
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReceivingLineInput"
+
+    ReceivingLine:
+      type: object
+      required: [id, heatNumber, cmtrDocumentId, pieces]
+      properties:
+        id:
+          type: integer
+        purchaseOrderLineId:
+          type: ["integer", "null"]
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        heatNumber:
+          type: string
+        cmtrDocumentId:
+          type: integer
+        cmtrFilename:
+          type: ["string", "null"]
+        pieces:
+          type: integer
+        lengthIn:
+          type: ["number", "null"]
+        unitCost:
+          type: ["number", "null"]
+        discrepancyNotes:
+          type: ["string", "null"]
+        inventoryItemId:
+          type: ["integer", "null"]
+          description: Inventory item created from this received line
+
+    ReceivingRecord:
+      type: object
+      required: [id, purchaseOrderId, receivedDate, lines, createdAt]
+      properties:
+        id:
+          type: integer
+        purchaseOrderId:
+          type: integer
+        poNumber:
+          type: ["string", "null"]
+        receivedDate:
+          type: string
+          format: date
+        receivedByName:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceivingLine"
+        createdAt:
+          type: string
+          format: date-time
+
+    InventoryItemInput:
+      type: object
+      required: [quantity]
+      properties:
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        quantity:
+          type: integer
+          minimum: 1
+        lengthIn:
+          type: ["number", "null"]
+        sourceJobId:
+          type: ["integer", "null"]
+        isRemnant:
+          type: boolean
+        unitCost:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+
+    InventoryItem:
+      type: object
+      required: [id, quantity, isRemnant, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        quantity:
+          type: integer
+        lengthIn:
+          type: ["number", "null"]
+        sourceJobId:
+          type: ["integer", "null"]
+        sourceJobNumber:
+          type: ["string", "null"]
+        receivingLineId:
+          type: ["integer", "null"]
+        heatNumber:
+          type: ["string", "null"]
+        poNumber:
+          type: ["string", "null"]
+        vendorName:
+          type: ["string", "null"]
+        cmtrDocumentId:
+          type: ["integer", "null"]
+        isRemnant:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/InventoryStatus"
+        committedJobId:
+          type: ["integer", "null"]
+          description: Job this item is reserved for (set when status is committed)
+        committedJobNumber:
+          type: ["string", "null"]
+          description: Job number of the committed job
+        unitCost:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    InventoryCommitInput:
+      type: object
+      required: [jobId]
+      properties:
+        jobId:
+          type: integer
+          description: Job to commit this item to
+
+    InventoryConsumeInput:
+      type: object
+      required: [jobId, pieces]
+      properties:
+        jobId:
+          type: integer
+        bomPartId:
+          type: ["integer", "null"]
+        pieces:
+          type: integer
+          minimum: 1
+        remnantLengthIn:
+          type: ["number", "null"]
+          description: >
+            When set, a remnant of this length is returned to stock carrying
+            the original traceability references forward.
+        notes:
+          type: ["string", "null"]
+
+    InventoryTransferInput:
+      type: object
+      properties:
+        jobId:
+          type: ["integer", "null"]
+          description: Destination job; null moves the item to general stock
+        notes:
+          type: ["string", "null"]
+
+    HeatSheetEntry:
+      type: object
+      required: [movementId, pieces, consumedAt]
+      properties:
+        movementId:
+          type: integer
+        assemblyMark:
+          type: ["string", "null"]
+        partMark:
+          type: ["string", "null"]
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        pieces:
+          type: integer
+        lengthIn:
+          type: ["number", "null"]
+        heatNumber:
+          type: ["string", "null"]
+        vendorName:
+          type: ["string", "null"]
+        poNumber:
+          type: ["string", "null"]
+        cmtrDocumentId:
+          type: ["integer", "null"]
+        cmtrFilename:
+          type: ["string", "null"]
+        originalJobNumber:
+          type: ["string", "null"]
+          description: Set when the material was originally received against a different job (remnant/cross-job)
+        isRemnant:
+          type: boolean
+        totalCost:
+          type: ["number", "null"]
+        consumedAt:
+          type: string
+          format: date-time
+
+    JobHeatSheet:
+      type: object
+      required: [jobId, jobNumber, entries]
+      properties:
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/HeatSheetEntry"
+
+    StockMatchItem:
+      type: object
+      required: [id, quantity, status, isRemnant]
+      properties:
+        id:
+          type: integer
+        quantity:
+          type: integer
+        lengthIn:
+          type: ["number", "null"]
+        heatNumber:
+          type: ["string", "null"]
+        sourceJobNumber:
+          type: ["string", "null"]
+        isRemnant:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/InventoryStatus"
+        unitCost:
+          type: ["number", "null"]
+
+    StockMatch:
+      type: object
+      required: [profileType, profileSize, grade, neededPieces, availablePieces, items]
+      properties:
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        neededPieces:
+          type: integer
+        neededLengthIn:
+          type: ["number", "null"]
+        availablePieces:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockMatchItem"
+
+    MaterialMovement:
+      type: object
+      required: [id, movementType, quantity, occurredAt]
+      properties:
+        id:
+          type: integer
+        movementType:
+          $ref: "#/components/schemas/MovementType"
+        jobId:
+          type: ["integer", "null"]
+        jobNumber:
+          type: ["string", "null"]
+        poNumber:
+          type: ["string", "null"]
+        profileType:
+          type: ["string", "null"]
+        profileSize:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        heatNumber:
+          type: ["string", "null"]
+        quantity:
+          type: integer
+        lengthIn:
+          type: ["number", "null"]
+        totalCost:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        occurredAt:
+          type: string
+          format: date-time
+
+    JobMovementTotal:
+      type: object
+      required: [jobId, jobNumber, receivedCost, consumedCost, movementCount]
+      properties:
+        jobId:
+          type: ["integer", "null"]
+        jobNumber:
+          type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
+        receivedCost:
+          type: number
+        consumedCost:
+          type: number
+        movementCount:
+          type: integer
+
+    MaterialMovementsReport:
+      type: object
+      required: [month, movements, jobTotals, totalReceivedCost, totalConsumedCost]
+      properties:
+        month:
+          type: string
+        movements:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaterialMovement"
+        jobTotals:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobMovementTotal"
+        totalReceivedCost:
+          type: number
+        totalConsumedCost:
+          type: number
+
+    InventoryTrendPoint:
+      type: object
+      required: [month, receivedCost, consumedCost, receivedPieces, consumedPieces, inventoryValue, availablePieces]
+      properties:
+        month:
+          type: string
+        receivedCost:
+          type: number
+        consumedCost:
+          type: number
+        receivedPieces:
+          type: integer
+        consumedPieces:
+          type: integer
+        inventoryValue:
+          type: number
+          description: Value of on-hand (non-consumed) inventory at month end, from movement history
+        availablePieces:
+          type: integer
+    EstimateBomPart:
+      type: object
+      required: [id, quantity, pricingStatus, isMisc]
+      properties:
+        id:
+          type: integer
+        partMark:
+          type: [string, "null"]
+        quantity:
+          type: integer
+          minimum: 1
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        lengthIn:
+          type: [number, "null"]
+        description:
+          type: [string, "null"]
+        pricingStatus:
+          type: string
+          enum: [matched, needs_quote, manual]
+        catalogItemId:
+          type: [integer, "null"]
+        catalogUnitPrice:
+          type: [number, "null"]
+        catalogPriceUnit:
+          type: [string, "null"]
+        quotedUnitPrice:
+          type: [number, "null"]
+          minimum: 0
+        quotedPriceUnit:
+          type: [string, "null"]
+        quoteSource:
+          type: [string, "null"]
+        isMisc:
+          type: boolean
+        lineCost:
+          type: [number, "null"]
+          description: Extended cost for this line (per assembly quantity), when priceable
+
+    EstimateBomAssembly:
+      type: object
+      required: [id, mark, quantity, parts]
+      properties:
+        id:
+          type: integer
+        mark:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        description:
+          type: [string, "null"]
+        finish:
+          type: [string, "null"]
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstimateBomPart"
+
+    EstimateBomView:
+      type: object
+      required:
+        - assemblies
+        - totals
+        - assemblyCount
+        - partCount
+        - totalPieces
+        - materialCost
+        - needsQuoteCount
+        - manualCount
+      properties:
+        assemblyCount:
+          type: integer
+        partCount:
+          type: integer
+        totalPieces:
+          type: integer
+        materialCost:
+          type: number
+          description: Sum of priceable line costs
+        needsQuoteCount:
+          type: integer
+        manualCount:
+          type: integer
+        assemblies:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstimateBomAssembly"
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/BomMaterialTotal"
+
+    EstimateBomMaterialMatch:
+      type: object
+      required: [key, pieces, matched]
+      properties:
+        key:
+          type: string
+          description: Pipe-delimited profileType|profileSize|grade key
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        pieces:
+          type: integer
+        totalLengthIn:
+          type: [number, "null"]
+        matched:
+          type: boolean
+          description: True when a confident (exact) catalog match was found
+        catalogItemId:
+          type: [integer, "null"]
+        catalogUnitPrice:
+          type: [number, "null"]
+        catalogPriceUnit:
+          type: [string, "null"]
+
+    EstimateBomImportPreview:
+      type: object
+      required: [bom, materials, unmatchedCount]
+      properties:
+        bom:
+          $ref: "#/components/schemas/BomView"
+        materials:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstimateBomMaterialMatch"
+        unmatchedCount:
+          type: integer
+
+    EstimateBomImportPartInput:
+      type: object
+      required: [quantity]
+      properties:
+        partMark:
+          type: [string, "null"]
+        quantity:
+          type: integer
+          minimum: 1
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        lengthIn:
+          type: [number, "null"]
+        description:
+          type: [string, "null"]
+
+    EstimateBomImportAssemblyInput:
+      type: object
+      required: [mark, quantity, parts]
+      properties:
+        mark:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        description:
+          type: [string, "null"]
+        finish:
+          type: [string, "null"]
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstimateBomImportPartInput"
+
+    EstimateBomMaterialResolution:
+      type: object
+      required: [key, action]
+      properties:
+        key:
+          type: string
+          description: Pipe-delimited profileType|profileSize|grade key
+        action:
+          type: string
+          enum: [match, needs_quote, manual]
+        catalogItemId:
+          type: [integer, "null"]
+          description: Required when action is match
+        manualUnitPrice:
+          type: [number, "null"]
+          description: Required when action is manual
+          minimum: 0
+        manualPriceUnit:
+          type: [string, "null"]
+          description: per_foot | per_piece | per_lb (manual action)
+        quoteSource:
+          type: [string, "null"]
+        isMisc:
+          type: boolean
+          description: Mark these parts as misc/hardware (always included in RFQ export)
+
+    EstimateBomCommitInput:
+      type: object
+      required: [assemblies, resolutions]
+      properties:
+        assemblies:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstimateBomImportAssemblyInput"
+        resolutions:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstimateBomMaterialResolution"
+
+    EstimateBomAssemblyInput:
+      type: object
+      required: [mark]
+      properties:
+        mark:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 1
+        description:
+          type: [string, "null"]
+        finish:
+          type: [string, "null"]
+
+    EstimateBomAssemblyUpdate:
+      type: object
+      properties:
+        mark:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 1
+        description:
+          type: [string, "null"]
+        finish:
+          type: [string, "null"]
+
+    EstimateBomPartInput:
+      type: object
+      required: [quantity]
+      properties:
+        partMark:
+          type: [string, "null"]
+        quantity:
+          type: integer
+          minimum: 1
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        lengthIn:
+          type: [number, "null"]
+        description:
+          type: [string, "null"]
+        isMisc:
+          type: boolean
+
+    EstimateBomPartUpdate:
+      type: object
+      properties:
+        partMark:
+          type: [string, "null"]
+        quantity:
+          type: integer
+          minimum: 1
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        lengthIn:
+          type: [number, "null"]
+        description:
+          type: [string, "null"]
+        pricingStatus:
+          type: string
+          enum: [matched, needs_quote, manual]
+        catalogItemId:
+          type: [integer, "null"]
+        quotedUnitPrice:
+          type: [number, "null"]
+          minimum: 0
+        quotedPriceUnit:
+          type: [string, "null"]
+        quoteSource:
+          type: [string, "null"]
+        isMisc:
+          type: boolean
+
+    RfqItem:
+      type: object
+      required: [pieces, isMisc]
+      properties:
+        profileType:
+          type: [string, "null"]
+        profileSize:
+          type: [string, "null"]
+        grade:
+          type: [string, "null"]
+        description:
+          type: [string, "null"]
+        pieces:
+          type: integer
+        totalLengthIn:
+          type: [number, "null"]
+        isMisc:
+          type: boolean
+        quoteSource:
+          type: [string, "null"]
+
+    EstimatePricingSummary:
+      type: object
+      required:
+        - materialCost
+        - laborCost
+        - subtotal
+        - marginPercent
+        - marginAmount
+        - total
+        - needsQuoteCount
+      properties:
+        materialCost:
+          type: number
+        laborCost:
+          type: number
+        subtotal:
+          type: number
+        marginPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        marginAmount:
+          type: number
+        total:
+          type: number
+        needsQuoteCount:
+          type: integer
+          description: Materials still awaiting a quote (not included in cost)
+
+    EstimateLaborLine:
+      type: object
+      required: [id, trade, hours, hourlyRate, cost]
+      properties:
+        id:
+          type: integer
+        trade:
+          type: string
+        hours:
+          type: number
+          minimum: 0
+        hourlyRate:
+          type: number
+          minimum: 0
+        cost:
+          type: number
+        notes:
+          type: [string, "null"]
+        sortIndex:
+          type: integer
+
+    EstimateLaborLineInput:
+      type: object
+      required: [trade, hours]
+      properties:
+        trade:
+          type: string
+          minLength: 1
+        hours:
+          type: number
+          minimum: 0
+        hourlyRate:
+          type: [number, "null"]
+          description: Defaults to the company's configured rate for the trade
+          minimum: 0
+        notes:
+          type: [string, "null"]
+
+    EstimateLaborLineUpdate:
+      type: object
+      properties:
+        trade:
+          type: string
+          minLength: 1
+        hours:
+          type: number
+          minimum: 0
+        hourlyRate:
+          type: number
+          minimum: 0
+        notes:
+          type: [string, "null"]
+
+    LaborRate:
+      type: object
+      required: [id, trade, hourlyRate, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        trade:
+          type: string
+        hourlyRate:
+          type: number
+          minimum: 0
+        notes:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LaborRateInput:
+      type: object
+      required: [trade, hourlyRate]
+      properties:
+        trade:
+          type: string
+          minLength: 1
+        hourlyRate:
+          type: number
+          minimum: 0
+        notes:
+          type: [string, "null"]
+
+    LaborRateUpdate:
+      type: object
+      properties:
+        trade:
+          type: string
+          minLength: 1
+        hourlyRate:
+          type: number
+          minimum: 0
+        notes:
+          type: [string, "null"]
+
+    RfqItemList:
+      type: array
+      items:
+        $ref: "#/components/schemas/RfqItem"
+
+    EstimateLaborLineList:
+      type: array
+      items:
+        $ref: "#/components/schemas/EstimateLaborLine"
+
+    LaborRateList:
+      type: array
+      items:
+        $ref: "#/components/schemas/LaborRate"
+
+    VendorStockLength:
+      type: object
+      required: [id, vendorId, lengthIn, createdAt]
+      properties:
+        id:
+          type: integer
+        vendorId:
+          type: integer
+        profileType:
+          type: [string, "null"]
+          description: Profile type this length applies to; null = all profiles
+        lengthIn:
+          type: number
+          minimum: 1
+          description: Usable stock length in inches
+        notes:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    VendorStockLengthInput:
+      type: object
+      required: [lengthIn]
+      properties:
+        profileType:
+          type: [string, "null"]
+        lengthIn:
+          type: number
+          minimum: 1
+        notes:
+          type: [string, "null"]
+
+    NestingComputeInput:
+      type: object
+      properties:
+        kerfIn:
+          type: number
+          minimum: 0
+          default: 0.25
+          description: Saw blade kerf in inches (default 0.25)
+
+    NestingCut:
+      type: object
+      required: [lengthIn, quantity, label]
+      properties:
+        partId:
+          type: [integer, "null"]
+        lengthIn:
+          type: number
+        quantity:
+          type: integer
+        label:
+          type: string
+
+    NestingBar:
+      type: object
+      required: [source, stockLengthIn, wasteIn, cuts]
+      properties:
+        source:
+          type: string
+          enum: [stock, remnant]
+        vendorId:
+          type: [integer, "null"]
+        vendorName:
+          type: [string, "null"]
+        stockLengthIn:
+          type: number
+        wasteIn:
+          type: number
+        remnantRef:
+          type: [string, "null"]
+        cuts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingCut"
+
+    NestingMissingPart:
+      type: object
+      required: [partId, lengthIn, label, reason]
+      properties:
+        partId:
+          type: integer
+        lengthIn:
+          type: number
+        label:
+          type: string
+        reason:
+          type: string
+
+    NestingOption:
+      type: object
+      required: [vendorId, vendorName, stockLengthIn, isComplete, missingParts, bars, totalStockIn, totalUsedIn, totalWasteIn, wastePercent]
+      properties:
+        vendorId:
+          type: integer
+        vendorName:
+          type: string
+        stockLengthIn:
+          type: number
+        isComplete:
+          type: boolean
+          description: True when all demanded pieces fit on this stock length. Incomplete options must not be accepted.
+        missingParts:
+          type: array
+          description: Parts that cannot fit on this stock length (empty when isComplete=true)
+          items:
+            $ref: "#/components/schemas/NestingMissingPart"
+        bars:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingBar"
+        totalStockIn:
+          type: number
+        totalUsedIn:
+          type: number
+        totalWasteIn:
+          type: number
+        wastePercent:
+          type: number
+
+    NestingUnnestable:
+      type: object
+      required: [partId, lengthIn, label, reason]
+      properties:
+        partId:
+          type: integer
+        lengthIn:
+          type: number
+        label:
+          type: string
+        reason:
+          type: string
+
+    NestingGroupResult:
+      type: object
+      required: [profileType, profileSize, grade, options, unnestable]
+      properties:
+        profileType:
+          type: string
+        profileSize:
+          type: string
+        grade:
+          type: string
+        options:
+          type: array
+          description: Options ranked by waste% ascending
+          items:
+            $ref: "#/components/schemas/NestingOption"
+        unnestable:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingUnnestable"
+
+    NestingComputeResult:
+      type: object
+      required: [groups, kerfIn]
+      properties:
+        kerfIn:
+          type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingGroupResult"
+
+    AcceptNestingOptionGroup:
+      type: object
+      required: [profileType, profileSize, grade, vendorId, stockLengthIn]
+      properties:
+        profileType:
+          type: string
+        profileSize:
+          type: string
+        grade:
+          type: string
+        vendorId:
+          type: integer
+          description: Vendor whose stock length was selected — stable identity for the chosen option
+        stockLengthIn:
+          type: number
+          description: Exact stock length in inches of the selected option — stable identity alongside vendorId
+
+    AcceptNestingInput:
+      type: object
+      required: [kerfIn, groups]
+      properties:
+        kerfIn:
+          type: number
+          minimum: 0
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/AcceptNestingOptionGroup"
+
+    NestingPlanGroup:
+      type: object
+      required: [profileType, profileSize, grade, bars, totalStockIn, totalWasteIn, wastePercent]
+      properties:
+        profileType:
+          type: string
+        profileSize:
+          type: string
+        grade:
+          type: string
+        bars:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingBar"
+        totalStockIn:
+          type: number
+        totalWasteIn:
+          type: number
+        wastePercent:
+          type: number
+
+    NestingPlan:
+      type: object
+      required: [id, jobId, status, kerfIn, groups, createdAt]
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        status:
+          type: string
+          enum: [draft, accepted]
+        kerfIn:
+          type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingPlanGroup"
+        createdAt:
+          type: string
+          format: date-time
+        acceptedAt:
+          type: [string, "null"]
+          format: date-time
+
+    NestingCutListBar:
+      type: object
+      required: [barIndex, source, stockLengthIn, wasteIn, wastePercent, cuts]
+      properties:
+        barIndex:
+          type: integer
+        source:
+          type: string
+          enum: [stock, remnant]
+        vendorName:
+          type: [string, "null"]
+        stockLengthIn:
+          type: number
+        wasteIn:
+          type: number
+        wastePercent:
+          type: number
+        remnantRef:
+          type: [string, "null"]
+        cuts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingCut"
+
+    NestingCutListGroup:
+      type: object
+      required: [profileType, profileSize, grade, bars, totalBars, totalStockIn, totalWasteIn, wastePercent]
+      properties:
+        profileType:
+          type: string
+        profileSize:
+          type: string
+        grade:
+          type: string
+        bars:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingCutListBar"
+        totalBars:
+          type: integer
+        totalStockIn:
+          type: number
+        totalWasteIn:
+          type: number
+        wastePercent:
+          type: number
+
+    NestingCutList:
+      type: object
+      required: [planId, jobId, kerfIn, groups]
+      properties:
+        planId:
+          type: integer
+        jobId:
+          type: integer
+        kerfIn:
+          type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/NestingCutListGroup"

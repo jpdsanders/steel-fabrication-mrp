@@ -1,7 +1,18 @@
-import { db, pool, jobsTable, customersTable } from "@workspace/db";
+import { db, pool, jobsTable, customersTable, companiesTable } from "@workspace/db";
 import { eq, isNull, and, ne } from "drizzle-orm";
 
 async function main() {
+  // migrate-customers links jobs to customer rows; new customers belong to S&S Steel
+  const [ssSteelCo] = await db
+    .select({ id: companiesTable.id })
+    .from(companiesTable)
+    .where(eq(companiesTable.slug, "ss-steel"))
+    .limit(1);
+  if (!ssSteelCo) {
+    throw new Error("S&S Steel company not found. Run `pnpm --filter @workspace/scripts run seed:companies` first.");
+  }
+  const companyId = ssSteelCo.id;
+
   const orphanJobs = await db
     .select()
     .from(jobsTable)
@@ -27,7 +38,7 @@ async function main() {
     if (customerId === undefined) {
       const [customer] = await db
         .insert(customersTable)
-        .values({ name, status: "active" })
+        .values({ companyId, name, status: "active" })
         .returning();
       customerId = customer.id;
       idByName.set(key, customerId);

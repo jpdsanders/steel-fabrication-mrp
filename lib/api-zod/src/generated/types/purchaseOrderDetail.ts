@@ -5,6 +5,7 @@
  * Steel Fabrication MRP API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PurchaseOrderApprovalInfo } from './purchaseOrderApprovalInfo';
 import type { PurchaseOrderLine } from './purchaseOrderLine';
 import type { PurchaseOrderStatus } from './purchaseOrderStatus';
 
@@ -18,6 +19,20 @@ export interface PurchaseOrderDetail {
   status: PurchaseOrderStatus;
   /** @nullable */
   reviewComment?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  vendorStatus?: string | null;
+  /** @nullable */
+  vendorExceptionJustification?: string | null;
+  revision?: number;
+  /** @nullable */
+  totalAmount?: number | null;
+  /** PO-level quality clause ids */
+  qualityClauseIds?: number[];
+  approval?: PurchaseOrderApprovalInfo;
   lineCount: number;
   totalPieces: number;
   lines: PurchaseOrderLine[];

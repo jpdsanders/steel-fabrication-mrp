@@ -19,6 +19,7 @@ import {
   enrichOneTimeEntry,
 } from "../services/production";
 import { parseIntParam, parseQueryBool } from "../lib/params";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -26,58 +27,55 @@ async function validateRefs(
   employeeId: number,
   jobId: number,
   stageId: number,
+  companyId: number,
 ): Promise<string | null> {
   const [emp] = await db
     .select()
     .from(employeesTable)
-    .where(eq(employeesTable.id, employeeId));
+    .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, companyId)));
   if (!emp) return "Employee not found";
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId));
+  const [job] = await db
+    .select()
+    .from(jobsTable)
+    .where(and(eq(jobsTable.id, jobId), eq(jobsTable.companyId, companyId)));
   if (!job) return "Job not found";
   const [stage] = await db
     .select()
     .from(stagesTable)
     .where(eq(stagesTable.id, stageId));
-  if (!stage || stage.jobId !== jobId)
-    return "Stage not found for this job";
+  if (!stage || stage.jobId !== jobId) return "Stage not found for this job";
   return null;
 }
 
-/** Validate that a stage belongs to the given job. */
-async function stageBelongsToJob(
-  stageId: number,
-  jobId: number,
-): Promise<boolean> {
-  const [stage] = await db
-    .select()
-    .from(stagesTable)
-    .where(eq(stagesTable.id, stageId));
+async function stageBelongsToJob(stageId: number, jobId: number): Promise<boolean> {
+  const [stage] = await db.select().from(stagesTable).where(eq(stagesTable.id, stageId));
   return !!stage && stage.jobId === jobId;
 }
 
-router.get("/time-entries", async (req, res): Promise<void> => {
+// Time entries: scoped through employee + job (both must belong to caller's company)
+router.get("/time-entries", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const query = ListTimeEntriesQueryParams.parse(req.query);
   const conditions: SQL[] = [];
   if (query.jobId) conditions.push(eq(timeEntriesTable.jobId, query.jobId));
-  if (query.employeeId)
-    conditions.push(eq(timeEntriesTable.employeeId, query.employeeId));
-  if (parseQueryBool(req.query.activeOnly))
-    conditions.push(isNull(timeEntriesTable.clockOut));
+  if (query.employeeId) conditions.push(eq(timeEntriesTable.employeeId, query.employeeId));
+  if (parseQueryBool(req.query.activeOnly)) conditions.push(isNull(timeEntriesTable.clockOut));
+  
+  // Join to jobs to scope by company
   const rows = await db
-    .select()
+    .select({ te: timeEntriesTable })
     .from(timeEntriesTable)
+    .innerJoin(jobsTable, and(eq(timeEntriesTable.jobId, jobsTable.id), eq(jobsTable.companyId, companyId)))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(timeEntriesTable.clockIn));
-  res.json(await enrichTimeEntries(rows));
+  res.json(await enrichTimeEntries(rows.map((r) => r.te)));
 });
 
-router.post("/time-entries", async (req, res): Promise<void> => {
+router.post("/time-entries", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const body = CreateTimeEntryBody.parse(req.body);
-  const err = await validateRefs(body.employeeId, body.jobId, body.stageId);
-  if (err) {
-    res.status(400).json({ error: err });
-    return;
-  }
+  const err = await validateRefs(body.employeeId, body.jobId, body.stageId, companyId);
+  if (err) { res.status(400).json({ error: err }); return; }
   const clockIn = new Date(body.clockIn);
   const clockOut = new Date(body.clockOut);
   if (clockOut.getTime() < clockIn.getTime()) {
@@ -86,165 +84,107 @@ router.post("/time-entries", async (req, res): Promise<void> => {
   }
   const [row] = await db
     .insert(timeEntriesTable)
-    .values({
-      employeeId: body.employeeId,
-      jobId: body.jobId,
-      stageId: body.stageId,
-      clockIn,
-      clockOut,
-    })
+    .values({ employeeId: body.employeeId, jobId: body.jobId, stageId: body.stageId, clockIn, clockOut })
     .returning();
   res.status(201).json(await enrichOneTimeEntry(row));
 });
 
-router.patch("/time-entries/:entryId", async (req, res): Promise<void> => {
+router.patch("/time-entries/:entryId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const entryId = parseIntParam(req.params.entryId);
-  if (entryId === null) {
-    res.status(400).json({ error: "Invalid time entry id" });
-    return;
-  }
+  if (entryId === null) { res.status(400).json({ error: "Invalid time entry id" }); return; }
   const body = UpdateTimeEntryBody.parse(req.body);
-  const [existing] = await db
-    .select()
+  // Verify entry belongs to caller's company via job
+  const [entryWithJob] = await db
+    .select({ te: timeEntriesTable })
     .from(timeEntriesTable)
+    .innerJoin(jobsTable, and(eq(timeEntriesTable.jobId, jobsTable.id), eq(jobsTable.companyId, companyId)))
     .where(eq(timeEntriesTable.id, entryId));
-  if (!existing) {
-    res.status(404).json({ error: "Time entry not found" });
-    return;
-  }
+  if (!entryWithJob) { res.status(404).json({ error: "Time entry not found" }); return; }
+  const existing = entryWithJob.te;
   const updates: Partial<typeof timeEntriesTable.$inferInsert> = {};
   if (body.stageId !== undefined) {
     if (!(await stageBelongsToJob(body.stageId, existing.jobId))) {
-      res.status(400).json({ error: "Stage not found for this job" });
-      return;
+      res.status(400).json({ error: "Stage not found for this job" }); return;
     }
     updates.stageId = body.stageId;
   }
   if (body.clockIn !== undefined) updates.clockIn = new Date(body.clockIn);
-  if (body.clockOut !== undefined)
-    updates.clockOut = body.clockOut ? new Date(body.clockOut) : null;
+  if (body.clockOut !== undefined) updates.clockOut = body.clockOut ? new Date(body.clockOut) : null;
   const effClockIn = updates.clockIn ?? existing.clockIn;
-  const effClockOut =
-    updates.clockOut !== undefined ? updates.clockOut : existing.clockOut;
-  if (
-    effClockOut &&
-    effClockIn &&
-    effClockOut.getTime() < effClockIn.getTime()
-  ) {
-    res.status(400).json({ error: "clockOut must be at or after clockIn" });
-    return;
+  const effClockOut = updates.clockOut !== undefined ? updates.clockOut : existing.clockOut;
+  if (effClockOut && effClockIn && effClockOut.getTime() < effClockIn.getTime()) {
+    res.status(400).json({ error: "clockOut must be at or after clockIn" }); return;
   }
-  await db
-    .update(timeEntriesTable)
-    .set(updates)
-    .where(eq(timeEntriesTable.id, entryId));
-  const [row] = await db
-    .select()
-    .from(timeEntriesTable)
-    .where(eq(timeEntriesTable.id, entryId));
+  await db.update(timeEntriesTable).set(updates).where(eq(timeEntriesTable.id, entryId));
+  const [row] = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.id, entryId));
   res.json(await enrichOneTimeEntry(row));
 });
 
-router.delete("/time-entries/:entryId", async (req, res): Promise<void> => {
+router.delete("/time-entries/:entryId", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const entryId = parseIntParam(req.params.entryId);
-  if (entryId === null) {
-    res.status(400).json({ error: "Invalid time entry id" });
-    return;
-  }
-  const [existing] = await db
-    .select()
+  if (entryId === null) { res.status(400).json({ error: "Invalid time entry id" }); return; }
+  const [entryWithJob] = await db
+    .select({ te: timeEntriesTable })
     .from(timeEntriesTable)
+    .innerJoin(jobsTable, and(eq(timeEntriesTable.jobId, jobsTable.id), eq(jobsTable.companyId, companyId)))
     .where(eq(timeEntriesTable.id, entryId));
-  if (!existing) {
-    res.status(404).json({ error: "Time entry not found" });
-    return;
-  }
+  if (!entryWithJob) { res.status(404).json({ error: "Time entry not found" }); return; }
   await db.delete(timeEntriesTable).where(eq(timeEntriesTable.id, entryId));
   res.status(204).send();
 });
 
-router.post("/time-clock/in", async (req, res): Promise<void> => {
+// Kiosk clock-in/out — also requires auth (shop floor employees clock in as an auth'd session)
+router.post("/time-clock/in", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const body = ClockInBody.parse(req.body);
-  const err = await validateRefs(body.employeeId, body.jobId, body.stageId);
-  if (err) {
-    res.status(400).json({ error: err });
-    return;
-  }
-  const [job] = await db
-    .select()
-    .from(jobsTable)
-    .where(eq(jobsTable.id, body.jobId));
+  const err = await validateRefs(body.employeeId, body.jobId, body.stageId, companyId);
+  if (err) { res.status(400).json({ error: err }); return; }
+  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, body.jobId));
   if (job.status === "complete" || job.status === "closed") {
-    res
-      .status(400)
-      .json({ error: "Cannot clock in to a completed or closed job" });
-    return;
+    res.status(400).json({ error: "Cannot clock in to a completed or closed job" }); return;
   }
-  const [stage] = await db
-    .select()
-    .from(stagesTable)
-    .where(eq(stagesTable.id, body.stageId));
+  const [stage] = await db.select().from(stagesTable).where(eq(stagesTable.id, body.stageId));
   if (stage.status === "complete") {
-    res.status(400).json({ error: "Cannot clock in to a completed stage" });
-    return;
+    res.status(400).json({ error: "Cannot clock in to a completed stage" }); return;
   }
   const [open] = await db
     .select()
     .from(timeEntriesTable)
-    .where(
-      and(
-        eq(timeEntriesTable.employeeId, body.employeeId),
-        isNull(timeEntriesTable.clockOut),
-      ),
-    );
-  if (open) {
-    res.status(400).json({ error: "Employee is already clocked in" });
-    return;
-  }
+    .where(and(eq(timeEntriesTable.employeeId, body.employeeId), isNull(timeEntriesTable.clockOut)));
+  if (open) { res.status(400).json({ error: "Employee is already clocked in" }); return; }
   const [row] = await db
     .insert(timeEntriesTable)
-    .values({
-      employeeId: body.employeeId,
-      jobId: body.jobId,
-      stageId: body.stageId,
-      clockIn: new Date(),
-    })
+    .values({ employeeId: body.employeeId, jobId: body.jobId, stageId: body.stageId, clockIn: new Date() })
     .returning();
   res.status(201).json(await enrichOneTimeEntry(row));
 });
 
-router.post("/time-clock/out", async (req, res): Promise<void> => {
+router.post("/time-clock/out", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const body = ClockOutBody.parse(req.body);
-  const [existing] = await db
-    .select()
+  const [entryWithJob] = await db
+    .select({ te: timeEntriesTable })
     .from(timeEntriesTable)
+    .innerJoin(jobsTable, and(eq(timeEntriesTable.jobId, jobsTable.id), eq(jobsTable.companyId, companyId)))
     .where(eq(timeEntriesTable.id, body.entryId));
-  if (!existing) {
-    res.status(404).json({ error: "Time entry not found" });
-    return;
-  }
-  if (existing.clockOut) {
-    res.status(400).json({ error: "Time entry is already clocked out" });
-    return;
-  }
-  await db
-    .update(timeEntriesTable)
-    .set({ clockOut: new Date() })
-    .where(eq(timeEntriesTable.id, body.entryId));
-  const [row] = await db
-    .select()
-    .from(timeEntriesTable)
-    .where(eq(timeEntriesTable.id, body.entryId));
+  if (!entryWithJob) { res.status(404).json({ error: "Time entry not found" }); return; }
+  if (entryWithJob.te.clockOut) { res.status(400).json({ error: "Time entry is already clocked out" }); return; }
+  await db.update(timeEntriesTable).set({ clockOut: new Date() }).where(eq(timeEntriesTable.id, body.entryId));
+  const [row] = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.id, body.entryId));
   res.json(await enrichOneTimeEntry(row));
 });
 
-router.get("/time-clock/active", async (_req, res): Promise<void> => {
+router.get("/time-clock/active", requireAuth, async (req, res): Promise<void> => {
+  const companyId = req.auth!.companyId;
   const rows = await db
-    .select()
+    .select({ te: timeEntriesTable })
     .from(timeEntriesTable)
+    .innerJoin(jobsTable, and(eq(timeEntriesTable.jobId, jobsTable.id), eq(jobsTable.companyId, companyId)))
     .where(isNull(timeEntriesTable.clockOut))
     .orderBy(desc(timeEntriesTable.clockIn));
-  res.json(await enrichTimeEntries(rows));
+  res.json(await enrichTimeEntries(rows.map((r) => r.te)));
 });
 
 export default router;

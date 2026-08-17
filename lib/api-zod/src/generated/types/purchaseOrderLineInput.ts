@@ -20,4 +20,15 @@ export interface PurchaseOrderLineInput {
      * @nullable
      */
   lengthIn?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  unitPrice?: number | null;
+  /**
+     * Vendor promise date (YYYY-MM-DD)
+     * @nullable
+     */
+  promiseDate?: string | null;
+  qualityClauseIds?: number[];
 }

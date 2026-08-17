@@ -5,6 +5,301 @@
  * Steel Fabrication MRP API specification
  * OpenAPI spec version: 0.1.0
  */
+export type NcrSource = typeof NcrSource[keyof typeof NcrSource];
+
+
+export const NcrSource = {
+  receiving: 'receiving',
+  in_process: 'in_process',
+  final: 'final',
+  post_delivery: 'post_delivery',
+} as const;
+
+/**
+ * @nullable
+ */
+export type NcrDisposition = typeof NcrDisposition[keyof typeof NcrDisposition] | null;
+
+
+export const NcrDisposition = {
+  rework: 'rework',
+  scrap: 'scrap',
+  accept_with_deviation: 'accept_with_deviation',
+} as const;
+
+export type NcrStatus = typeof NcrStatus[keyof typeof NcrStatus];
+
+
+export const NcrStatus = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export interface Ncr {
+  id: number;
+  number: string;
+  source: NcrSource;
+  description: string;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobNumber?: string | null;
+  /** @nullable */
+  assemblyId?: number | null;
+  /** @nullable */
+  assemblyMark?: string | null;
+  /** @nullable */
+  purchaseOrderId?: number | null;
+  /** @nullable */
+  poNumber?: string | null;
+  /** @nullable */
+  disposition?: NcrDisposition;
+  /** @nullable */
+  dispositionNotes?: string | null;
+  /** @nullable */
+  rootCause?: string | null;
+  /** @nullable */
+  approvedBy?: number | null;
+  /** @nullable */
+  approvedByName?: string | null;
+  /** @nullable */
+  approvedAt?: string | null;
+  status: NcrStatus;
+  /** @nullable */
+  closedAt?: string | null;
+  /** @nullable */
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NcrInputSource = typeof NcrInputSource[keyof typeof NcrInputSource];
+
+
+export const NcrInputSource = {
+  receiving: 'receiving',
+  in_process: 'in_process',
+  final: 'final',
+  post_delivery: 'post_delivery',
+} as const;
+
+export interface NcrInput {
+  source: NcrInputSource;
+  /** @minLength 1 */
+  description: string;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  assemblyId?: number | null;
+  /** @nullable */
+  purchaseOrderId?: number | null;
+}
+
+/**
+ * @nullable
+ */
+export type NcrUpdateDisposition = typeof NcrUpdateDisposition[keyof typeof NcrUpdateDisposition] | null;
+
+
+export const NcrUpdateDisposition = {
+  rework: 'rework',
+  scrap: 'scrap',
+  accept_with_deviation: 'accept_with_deviation',
+} as const;
+
+export interface NcrUpdate {
+  description?: string;
+  /** @nullable */
+  disposition?: NcrUpdateDisposition;
+  /** @nullable */
+  dispositionNotes?: string | null;
+  /** @nullable */
+  rootCause?: string | null;
+  /** Stamp the caller as approver */
+  approve?: boolean;
+  /** Close the NCR (requires a disposition) */
+  close?: boolean;
+  reopen?: boolean;
+}
+
+export type SubstitutionRequestType = typeof SubstitutionRequestType[keyof typeof SubstitutionRequestType];
+
+
+export const SubstitutionRequestType = {
+  like_for_like: 'like_for_like',
+  equivalent: 'equivalent',
+  upgrade: 'upgrade',
+  downgrade: 'downgrade',
+} as const;
+
+export type SubstitutionRequestStatus = typeof SubstitutionRequestStatus[keyof typeof SubstitutionRequestStatus];
+
+
+export const SubstitutionRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface SubstitutionRequest {
+  id: number;
+  number: string;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobNumber?: string | null;
+  /** @nullable */
+  assemblyId?: number | null;
+  /** @nullable */
+  assemblyMark?: string | null;
+  originalSpec: string;
+  proposedSubstitution: string;
+  type: SubstitutionRequestType;
+  engineeringRationale: string;
+  customerSpecified: boolean;
+  safetyCritical: boolean;
+  customerConcurrence: boolean;
+  /** @nullable */
+  concurrenceReference?: string | null;
+  status: SubstitutionRequestStatus;
+  /** @nullable */
+  approvedBy?: number | null;
+  /** @nullable */
+  approvedByName?: string | null;
+  /** @nullable */
+  approvedAt?: string | null;
+  /** @nullable */
+  executionReference?: string | null;
+  /** @nullable */
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SubstitutionRequestInputType = typeof SubstitutionRequestInputType[keyof typeof SubstitutionRequestInputType];
+
+
+export const SubstitutionRequestInputType = {
+  like_for_like: 'like_for_like',
+  equivalent: 'equivalent',
+  upgrade: 'upgrade',
+  downgrade: 'downgrade',
+} as const;
+
+export interface SubstitutionRequestInput {
+  /** @minLength 1 */
+  originalSpec: string;
+  /** @minLength 1 */
+  proposedSubstitution: string;
+  type: SubstitutionRequestInputType;
+  /** @minLength 1 */
+  engineeringRationale: string;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  assemblyId?: number | null;
+  customerSpecified?: boolean;
+  safetyCritical?: boolean;
+}
+
+export interface SubstitutionRequestUpdate {
+  customerConcurrence?: boolean;
+  /** @nullable */
+  concurrenceReference?: string | null;
+  /** @nullable */
+  executionReference?: string | null;
+  approve?: boolean;
+  reject?: boolean;
+}
+
+export interface ShipmentAssembly {
+  assemblyId: number;
+  mark: string;
+  quantity: number;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  currentStage?: string | null;
+  onHold?: boolean;
+  readyToShip: boolean;
+}
+
+export interface ShipmentNotification {
+  id: number;
+  proposedShipDate: string;
+  carrier: string;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  notifiedByName?: string | null;
+  createdAt: string;
+}
+
+export interface LoadConfirmation {
+  id: number;
+  signedBy: string;
+  signedAt: string;
+  /** @nullable */
+  discrepancyNotes?: string | null;
+}
+
+export type ShipmentStatus = typeof ShipmentStatus[keyof typeof ShipmentStatus];
+
+
+export const ShipmentStatus = {
+  planned: 'planned',
+  departed: 'departed',
+} as const;
+
+export interface Shipment {
+  id: number;
+  jobId: number;
+  shipperNumber: string;
+  /** @nullable */
+  carrier?: string | null;
+  /** @nullable */
+  pickupInfo?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  status: ShipmentStatus;
+  /** @nullable */
+  departedAt?: string | null;
+  assemblies: ShipmentAssembly[];
+  notification?: ShipmentNotification | null;
+  loadConfirmation?: LoadConfirmation | null;
+  /** True once the shipment notification has been recorded */
+  paperworkReady: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentInput {
+  /** @minItems 1 */
+  assemblyIds: number[];
+  /** @nullable */
+  carrier?: string | null;
+  /** @nullable */
+  pickupInfo?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface ShipmentNotificationInput {
+  /** @minLength 1 */
+  proposedShipDate: string;
+  /** @minLength 1 */
+  carrier: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface LoadConfirmationInput {
+  /** @minLength 1 */
+  signedBy: string;
+  /** @nullable */
+  discrepancyNotes?: string | null;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -93,6 +388,7 @@ export interface BomPart {
   id?: number;
   /** @nullable */
   partMark?: string | null;
+  /** @minimum 1 */
   quantity: number;
   /** @nullable */
   profileType?: string | null;
@@ -111,6 +407,7 @@ export interface BomPart {
 export interface BomAssembly {
   id?: number;
   mark: string;
+  /** @minimum 1 */
   quantity: number;
   /** @nullable */
   description?: string | null;
@@ -184,12 +481,39 @@ export const EstimateStatus = {
   lost: 'lost',
 } as const;
 
+/**
+ * Internal values only — user-facing labels come from a swappable display constant (see OPEN_QUESTIONS.md).
+ */
+export type EstimateType = typeof EstimateType[keyof typeof EstimateType];
+
+
+export const EstimateType = {
+  preliminary: 'preliminary',
+  detailed: 'detailed',
+} as const;
+
+export type EstimateQuoteFormat = typeof EstimateQuoteFormat[keyof typeof EstimateQuoteFormat];
+
+
+export const EstimateQuoteFormat = {
+  itemized: 'itemized',
+  summary: 'summary',
+} as const;
+
 export interface Estimate {
   id: number;
   bidNumber: string;
   name: string;
   customer: string;
   status: EstimateStatus;
+  /** Internal values only — user-facing labels come from a swappable display constant (see OPEN_QUESTIONS.md). */
+  type: EstimateType;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  marginPercent: number;
+  quoteFormat: EstimateQuoteFormat;
   estimatedHours: number;
   /** @nullable */
   amount?: number | null;
@@ -228,12 +552,35 @@ export const EstimateInputStatus = {
   lost: 'lost',
 } as const;
 
+export type EstimateInputType = typeof EstimateInputType[keyof typeof EstimateInputType];
+
+
+export const EstimateInputType = {
+  preliminary: 'preliminary',
+  detailed: 'detailed',
+} as const;
+
+export type EstimateInputQuoteFormat = typeof EstimateInputQuoteFormat[keyof typeof EstimateInputQuoteFormat];
+
+
+export const EstimateInputQuoteFormat = {
+  itemized: 'itemized',
+  summary: 'summary',
+} as const;
+
 export interface EstimateInput {
   /** @minLength 1 */
   name: string;
   /** @minLength 1 */
   customer: string;
   status?: EstimateInputStatus;
+  type?: EstimateInputType;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  marginPercent?: number;
+  quoteFormat?: EstimateInputQuoteFormat;
   estimatedHours?: number;
   /** @nullable */
   amount?: number | null;
@@ -254,12 +601,35 @@ export const EstimateUpdateStatus = {
   lost: 'lost',
 } as const;
 
+export type EstimateUpdateType = typeof EstimateUpdateType[keyof typeof EstimateUpdateType];
+
+
+export const EstimateUpdateType = {
+  preliminary: 'preliminary',
+  detailed: 'detailed',
+} as const;
+
+export type EstimateUpdateQuoteFormat = typeof EstimateUpdateQuoteFormat[keyof typeof EstimateUpdateQuoteFormat];
+
+
+export const EstimateUpdateQuoteFormat = {
+  itemized: 'itemized',
+  summary: 'summary',
+} as const;
+
 export interface EstimateUpdate {
   /** @minLength 1 */
   name?: string;
   /** @minLength 1 */
   customer?: string;
   status?: EstimateUpdateStatus;
+  type?: EstimateUpdateType;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  marginPercent?: number;
+  quoteFormat?: EstimateUpdateQuoteFormat;
   estimatedHours?: number;
   /** @nullable */
   amount?: number | null;
@@ -810,6 +1180,19 @@ export const PurchaseOrderStatus = {
   rejected: 'rejected',
 } as const;
 
+/**
+ * Receipt status derived from ordered vs received pieces
+ */
+export type PurchaseOrderLineReceiptStatus = typeof PurchaseOrderLineReceiptStatus[keyof typeof PurchaseOrderLineReceiptStatus];
+
+
+export const PurchaseOrderLineReceiptStatus = {
+  not_received: 'not_received',
+  partial: 'partial',
+  complete: 'complete',
+  over: 'over',
+} as const;
+
 export interface PurchaseOrderLine {
   id: number;
   /** @nullable */
@@ -824,6 +1207,28 @@ export interface PurchaseOrderLine {
      * @nullable
      */
   lengthIn?: number | null;
+  /**
+     * Price per piece
+     * @nullable
+     */
+  unitPrice?: number | null;
+  /**
+     * unitPrice * pieces, computed by the server
+     * @nullable
+     */
+  extendedPrice?: number | null;
+  /**
+     * Vendor promise date (YYYY-MM-DD)
+     * @nullable
+     */
+  promiseDate?: string | null;
+  qualityClauseIds: number[];
+  /** Total pieces received against this PO line across all receiving records */
+  receivedPieces: number;
+  /** Ordered pieces minus received pieces; negative means over-receipt */
+  remainingPieces: number;
+  /** Receipt status derived from ordered vs received pieces */
+  receiptStatus: PurchaseOrderLineReceiptStatus;
 }
 
 export interface PurchaseOrderLineInput {
@@ -840,6 +1245,17 @@ export interface PurchaseOrderLineInput {
      * @nullable
      */
   lengthIn?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  unitPrice?: number | null;
+  /**
+     * Vendor promise date (YYYY-MM-DD)
+     * @nullable
+     */
+  promiseDate?: string | null;
+  qualityClauseIds?: number[];
 }
 
 export interface PurchaseOrder {
@@ -852,10 +1268,33 @@ export interface PurchaseOrder {
   status: PurchaseOrderStatus;
   /** @nullable */
   reviewComment?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  vendorStatus?: string | null;
+  /** @nullable */
+  vendorExceptionJustification?: string | null;
+  /** Change-order revision number (0 = original issue) */
+  revision?: number;
+  /**
+     * Sum of extended line prices; null when no line is priced
+     * @nullable
+     */
+  totalAmount?: number | null;
   lineCount: number;
   totalPieces: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PurchaseOrderApprovalInfo {
+  requiresApproval: boolean;
+  /** @nullable */
+  requiredRole?: string | null;
+  /** @nullable */
+  thresholdLabel?: string | null;
 }
 
 export interface PurchaseOrderDetail {
@@ -868,6 +1307,20 @@ export interface PurchaseOrderDetail {
   status: PurchaseOrderStatus;
   /** @nullable */
   reviewComment?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  vendorStatus?: string | null;
+  /** @nullable */
+  vendorExceptionJustification?: string | null;
+  revision?: number;
+  /** @nullable */
+  totalAmount?: number | null;
+  /** PO-level quality clause ids */
+  qualityClauseIds?: number[];
+  approval?: PurchaseOrderApprovalInfo;
   lineCount: number;
   totalPieces: number;
   lines: PurchaseOrderLine[];
@@ -876,7 +1329,196 @@ export interface PurchaseOrderDetail {
 }
 
 export interface PurchaseOrderInput {
+  /** Required — a PO cannot be created without a vendor. */
+  vendorId: number;
+  /**
+     * Required when the vendor is not Approved/Conditional on the AVL.
+     * @nullable
+     */
+  vendorExceptionJustification?: string | null;
+  /** PO-level quality clause ids */
+  qualityClauseIds?: number[];
   lines: PurchaseOrderLineInput[];
+}
+
+export interface PurchaseOrderUpdate {
+  vendorId?: number;
+  /** @nullable */
+  vendorExceptionJustification?: string | null;
+  qualityClauseIds?: number[];
+  /**
+     * Change-order note; used when editing a PO past Draft, which captures a numbered revision.
+     * @nullable
+     */
+  revisionNote?: string | null;
+  lines: PurchaseOrderLineInput[];
+}
+
+export interface PurchaseOrderRevision {
+  id: number;
+  revisionNumber: number;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  createdBy?: number | null;
+  /** @nullable */
+  createdByName?: string | null;
+  snapshot: unknown;
+  createdAt: string;
+}
+
+export type DueInLineDueStatus = typeof DueInLineDueStatus[keyof typeof DueInLineDueStatus];
+
+
+export const DueInLineDueStatus = {
+  overdue: 'overdue',
+  due_soon: 'due_soon',
+  ok: 'ok',
+  no_date: 'no_date',
+} as const;
+
+export type DueInLineReceiptStatus = typeof DueInLineReceiptStatus[keyof typeof DueInLineReceiptStatus];
+
+
+export const DueInLineReceiptStatus = {
+  not_received: 'not_received',
+  partial: 'partial',
+  complete: 'complete',
+  over: 'over',
+} as const;
+
+export interface DueInLine {
+  poId: number;
+  poNumber: string;
+  poStatus: PurchaseOrderStatus;
+  jobId: number;
+  jobNumber: string;
+  jobName?: string;
+  /** @nullable */
+  vendorName?: string | null;
+  lineId: number;
+  description?: string;
+  /** Ordered quantity */
+  pieces: number;
+  /** @nullable */
+  promiseDate?: string | null;
+  dueStatus: DueInLineDueStatus;
+  /** Total pieces received so far */
+  receivedPieces: number;
+  /** Ordered minus received; negative means over-receipt */
+  remainingPieces: number;
+  receiptStatus: DueInLineReceiptStatus;
+}
+
+export type VendorStatus = typeof VendorStatus[keyof typeof VendorStatus];
+
+
+export const VendorStatus = {
+  conditional: 'conditional',
+  approved: 'approved',
+  suspended: 'suspended',
+  disqualified: 'disqualified',
+} as const;
+
+export interface Vendor {
+  id: number;
+  name: string;
+  /** @nullable */
+  categoryId?: number | null;
+  /** @nullable */
+  categoryName?: string | null;
+  status: VendorStatus;
+  /** @nullable */
+  scopeOfApproval?: string | null;
+  /**
+     * YYYY-MM-DD
+     * @nullable
+     */
+  coiExpiration?: string | null;
+  /** True when coiExpiration is in the past */
+  coiLapsed: boolean;
+  /** @nullable */
+  contactName?: string | null;
+  /** @nullable */
+  contactEmail?: string | null;
+  /** @nullable */
+  contactPhone?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VendorInput {
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  categoryId?: number | null;
+  status?: VendorStatus;
+  /** @nullable */
+  scopeOfApproval?: string | null;
+  /** @nullable */
+  coiExpiration?: string | null;
+  /** @nullable */
+  contactName?: string | null;
+  /** @nullable */
+  contactEmail?: string | null;
+  /** @nullable */
+  contactPhone?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface VendorCategory {
+  id: number;
+  name: string;
+  sortIndex: number;
+}
+
+export interface VendorCategoryInput {
+  /** @minLength 1 */
+  name: string;
+  sortIndex?: number;
+}
+
+export interface QualityClause {
+  id: number;
+  code: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  active: boolean;
+}
+
+export interface QualityClauseInput {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  active?: boolean;
+}
+
+export interface ApprovalThreshold {
+  id: number;
+  minTotal: number;
+  label: string;
+  /** @nullable */
+  requiredRole?: string | null;
+}
+
+export interface ApprovalThresholdTierInput {
+  /** @minimum 0 */
+  minTotal: number;
+  /** @minLength 1 */
+  label: string;
+  /** @nullable */
+  requiredRole?: string | null;
+}
+
+export interface ApprovalThresholdMatrixInput {
+  tiers: ApprovalThresholdTierInput[];
 }
 
 export type PurchaseOrderStatusInputStatus = typeof PurchaseOrderStatusInputStatus[keyof typeof PurchaseOrderStatusInputStatus];
@@ -895,6 +1537,1163 @@ export interface PurchaseOrderStatusInput {
      * @nullable
      */
   comment?: string | null;
+}
+
+export type DrawingRevisionStatus = typeof DrawingRevisionStatus[keyof typeof DrawingRevisionStatus];
+
+
+export const DrawingRevisionStatus = {
+  issued_for_approval: 'issued_for_approval',
+  approved: 'approved',
+  approved_as_noted: 'approved_as_noted',
+  rejected_revise_resubmit: 'rejected_revise_resubmit',
+  issued_for_fabrication: 'issued_for_fabrication',
+  as_built_final: 'as_built_final',
+} as const;
+
+export interface DrawingAckRecord {
+  userId: number;
+  userName: string;
+  acknowledgedAt: string;
+}
+
+export interface DrawingRevision {
+  id: number;
+  drawingId: number;
+  revisionLabel: string;
+  status: DrawingRevisionStatus;
+  isActive: boolean;
+  /** @nullable */
+  changeSummary: string | null;
+  documentId: number;
+  documentFilename: string;
+  /** @nullable */
+  issuedBy: number | null;
+  /** @nullable */
+  issuedByName: string | null;
+  /** @nullable */
+  supersededAt: string | null;
+  createdAt: string;
+  acknowledgedByMe: boolean;
+  acknowledgments?: DrawingAckRecord[];
+}
+
+export interface Drawing {
+  id: number;
+  jobId: number;
+  drawingNumber: string;
+  /** @nullable */
+  description: string | null;
+  createdAt: string;
+}
+
+export type DrawingListItem = Drawing & ({
+  revisionCount: number;
+  activeRevision: DrawingRevision | null;
+  /** True when the active revision has not been acknowledged by the caller */
+  ackRequired: boolean;
+});
+
+export type DrawingDetail = Drawing & {
+  revisions: DrawingRevision[];
+};
+
+export interface DrawingUploadForm {
+  file: Blob;
+  drawingNumber: string;
+  description?: string;
+  /** Defaults to "0" */
+  revisionLabel?: string;
+  status?: DrawingRevisionStatus;
+}
+
+export interface DrawingRevisionUploadForm {
+  file: Blob;
+  revisionLabel: string;
+  /** Required when superseding an existing Active revision */
+  changeSummary?: string;
+  status?: DrawingRevisionStatus;
+}
+
+export interface DrawingRevisionStatusInput {
+  status: DrawingRevisionStatus;
+}
+
+export interface DrawingAcknowledgment {
+  id: number;
+  userId: number;
+  drawingRevisionId: number;
+  acknowledgedAt: string;
+}
+
+export type RfiStatus = typeof RfiStatus[keyof typeof RfiStatus];
+
+
+export const RfiStatus = {
+  open: 'open',
+  pending: 'pending',
+  closed: 'closed',
+} as const;
+
+export interface Rfi {
+  id: number;
+  number: string;
+  jobId: number;
+  /** @nullable */
+  drawingId: number | null;
+  /** @nullable */
+  drawingRevisionId: number | null;
+  question: string;
+  /** @nullable */
+  submittedBy: number | null;
+  /** @nullable */
+  submittedByName: string | null;
+  /** @nullable */
+  directedTo: string | null;
+  /** @nullable */
+  dueDate: string | null;
+  status: RfiStatus;
+  /** @nullable */
+  responseText: string | null;
+  /** @nullable */
+  responseDate: string | null;
+  createdAt: string;
+}
+
+export interface RfiInput {
+  question: string;
+  /** @nullable */
+  drawingId?: number | null;
+  /** @nullable */
+  drawingRevisionId?: number | null;
+  /** @nullable */
+  directedTo?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+}
+
+export interface RfiUpdate {
+  status?: RfiStatus;
+  /** @nullable */
+  responseText?: string | null;
+  /** @nullable */
+  responseDate?: string | null;
+  /** @nullable */
+  directedTo?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+}
+
+export type EcnSource = typeof EcnSource[keyof typeof EcnSource];
+
+
+export const EcnSource = {
+  customer: 'customer',
+  internal: 'internal',
+  field: 'field',
+} as const;
+
+export type EcnDisposition = typeof EcnDisposition[keyof typeof EcnDisposition];
+
+
+export const EcnDisposition = {
+  rework: 'rework',
+  scrap: 'scrap',
+  fabricate_to_new_rev: 'fabricate_to_new_rev',
+  no_impact: 'no_impact',
+} as const;
+
+export type EcnStatus = typeof EcnStatus[keyof typeof EcnStatus];
+
+
+export const EcnStatus = {
+  open: 'open',
+  approved: 'approved',
+  closed: 'closed',
+} as const;
+
+export interface Ecn {
+  id: number;
+  number: string;
+  jobId: number;
+  source: EcnSource;
+  description: string;
+  /** @nullable */
+  affectedWork: string | null;
+  /** @nullable */
+  costImpact: string | null;
+  /** @nullable */
+  scheduleImpact: string | null;
+  disposition: EcnDisposition | null;
+  status: EcnStatus;
+  /** @nullable */
+  approvedBy: number | null;
+  /** @nullable */
+  approvedByName: string | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  closedAt: string | null;
+  createdAt: string;
+  affectedRevisionIds: number[];
+}
+
+export interface EcnInput {
+  source: EcnSource;
+  description: string;
+  /** @nullable */
+  affectedWork?: string | null;
+  /** @nullable */
+  costImpact?: string | null;
+  /** @nullable */
+  scheduleImpact?: string | null;
+  disposition?: EcnDisposition | null;
+  affectedRevisionIds?: number[];
+}
+
+export interface EcnUpdate {
+  description?: string;
+  /** @nullable */
+  affectedWork?: string | null;
+  /** @nullable */
+  costImpact?: string | null;
+  /** @nullable */
+  scheduleImpact?: string | null;
+  disposition?: EcnDisposition | null;
+  status?: EcnStatus;
+  affectedRevisionIds?: number[];
+}
+
+export type TransmittalPurpose = typeof TransmittalPurpose[keyof typeof TransmittalPurpose];
+
+
+export const TransmittalPurpose = {
+  for_approval: 'for_approval',
+  for_record: 'for_record',
+  for_construction: 'for_construction',
+  for_information: 'for_information',
+  other: 'other',
+} as const;
+
+export interface TransmittalItem {
+  id: number;
+  /** @nullable */
+  documentId: number | null;
+  /** @nullable */
+  drawingRevisionId: number | null;
+  /** Human-readable name (filename or drawing number + rev) */
+  label: string;
+}
+
+export interface Transmittal {
+  id: number;
+  jobId: number;
+  sentDate: string;
+  /** @nullable */
+  senderId: number | null;
+  /** @nullable */
+  senderName: string | null;
+  recipient: string;
+  purpose: TransmittalPurpose;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+  items: TransmittalItem[];
+}
+
+export interface TransmittalItemInput {
+  documentId?: number;
+  drawingRevisionId?: number;
+}
+
+export interface TransmittalInput {
+  sentDate: string;
+  recipient: string;
+  purpose: TransmittalPurpose;
+  /** @nullable */
+  notes?: string | null;
+  /** @minItems 1 */
+  items: TransmittalItemInput[];
+}
+
+export interface CloseoutDrawing {
+  drawingId: number;
+  drawingNumber: string;
+  /** @nullable */
+  description: string | null;
+  revision: DrawingRevision;
+}
+
+export interface CloseoutPackage {
+  jobId: number;
+  totalDrawings: number;
+  asBuiltCount: number;
+  asBuiltDrawings: CloseoutDrawing[];
+}
+
+export type InventoryStatus = typeof InventoryStatus[keyof typeof InventoryStatus];
+
+
+export const InventoryStatus = {
+  available: 'available',
+  committed: 'committed',
+  consumed: 'consumed',
+} as const;
+
+export type MovementType = typeof MovementType[keyof typeof MovementType];
+
+
+export const MovementType = {
+  purchased: 'purchased',
+  received: 'received',
+  consumed: 'consumed',
+  transferred: 'transferred',
+} as const;
+
+export interface ReceivingLineInput {
+  /** @nullable */
+  purchaseOrderLineId?: number | null;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  /** @minLength 1 */
+  heatNumber: string;
+  /** CMTR/MTR document id (required at receiving) */
+  cmtrDocumentId: number;
+  /** @minimum 1 */
+  pieces: number;
+  /** @nullable */
+  lengthIn?: number | null;
+  /**
+     * Cost per piece; defaults from the PO line unit price
+     * @nullable
+     */
+  unitCost?: number | null;
+  /** @nullable */
+  discrepancyNotes?: string | null;
+}
+
+export interface ReceivingRecordInput {
+  receivedDate: string;
+  /** @nullable */
+  notes?: string | null;
+  /** @minItems 1 */
+  lines: ReceivingLineInput[];
+}
+
+export interface ReceivingLine {
+  id: number;
+  /** @nullable */
+  purchaseOrderLineId?: number | null;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  heatNumber: string;
+  cmtrDocumentId: number;
+  /** @nullable */
+  cmtrFilename?: string | null;
+  pieces: number;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  unitCost?: number | null;
+  /** @nullable */
+  discrepancyNotes?: string | null;
+  /**
+     * Inventory item created from this received line
+     * @nullable
+     */
+  inventoryItemId?: number | null;
+}
+
+export interface ReceivingRecord {
+  id: number;
+  purchaseOrderId: number;
+  /** @nullable */
+  poNumber?: string | null;
+  receivedDate: string;
+  /** @nullable */
+  receivedByName?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  lines: ReceivingLine[];
+  createdAt: string;
+}
+
+export interface InventoryItemInput {
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  /** @minimum 1 */
+  quantity: number;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  sourceJobId?: number | null;
+  isRemnant?: boolean;
+  /** @nullable */
+  unitCost?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface InventoryItem {
+  id: number;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  quantity: number;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  sourceJobId?: number | null;
+  /** @nullable */
+  sourceJobNumber?: string | null;
+  /** @nullable */
+  receivingLineId?: number | null;
+  /** @nullable */
+  heatNumber?: string | null;
+  /** @nullable */
+  poNumber?: string | null;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  cmtrDocumentId?: number | null;
+  isRemnant: boolean;
+  status: InventoryStatus;
+  /**
+     * Job this item is reserved for (set when status is committed)
+     * @nullable
+     */
+  committedJobId?: number | null;
+  /**
+     * Job number of the committed job
+     * @nullable
+     */
+  committedJobNumber?: string | null;
+  /** @nullable */
+  unitCost?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryCommitInput {
+  /** Job to commit this item to */
+  jobId: number;
+}
+
+export interface InventoryConsumeInput {
+  jobId: number;
+  /** @nullable */
+  bomPartId?: number | null;
+  /** @minimum 1 */
+  pieces: number;
+  /**
+     * When set, a remnant of this length is returned to stock carrying the original traceability references forward.
+     * @nullable
+     */
+  remnantLengthIn?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface InventoryTransferInput {
+  /**
+     * Destination job; null moves the item to general stock
+     * @nullable
+     */
+  jobId?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface HeatSheetEntry {
+  movementId: number;
+  /** @nullable */
+  assemblyMark?: string | null;
+  /** @nullable */
+  partMark?: string | null;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  pieces: number;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  heatNumber?: string | null;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  poNumber?: string | null;
+  /** @nullable */
+  cmtrDocumentId?: number | null;
+  /** @nullable */
+  cmtrFilename?: string | null;
+  /**
+     * Set when the material was originally received against a different job (remnant/cross-job)
+     * @nullable
+     */
+  originalJobNumber?: string | null;
+  isRemnant?: boolean;
+  /** @nullable */
+  totalCost?: number | null;
+  consumedAt: string;
+}
+
+export interface JobHeatSheet {
+  jobId: number;
+  jobNumber: string;
+  jobName?: string;
+  entries: HeatSheetEntry[];
+}
+
+export interface StockMatchItem {
+  id: number;
+  quantity: number;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  heatNumber?: string | null;
+  /** @nullable */
+  sourceJobNumber?: string | null;
+  isRemnant: boolean;
+  status: InventoryStatus;
+  /** @nullable */
+  unitCost?: number | null;
+}
+
+export interface StockMatch {
+  /** @nullable */
+  profileType: string | null;
+  /** @nullable */
+  profileSize: string | null;
+  /** @nullable */
+  grade: string | null;
+  neededPieces: number;
+  /** @nullable */
+  neededLengthIn?: number | null;
+  availablePieces: number;
+  items: StockMatchItem[];
+}
+
+export interface MaterialMovement {
+  id: number;
+  movementType: MovementType;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobNumber?: string | null;
+  /** @nullable */
+  poNumber?: string | null;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  /** @nullable */
+  heatNumber?: string | null;
+  quantity: number;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  totalCost?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  occurredAt: string;
+}
+
+export interface JobMovementTotal {
+  /** @nullable */
+  jobId: number | null;
+  /** @nullable */
+  jobNumber: string | null;
+  /** @nullable */
+  jobName?: string | null;
+  receivedCost: number;
+  consumedCost: number;
+  movementCount: number;
+}
+
+export interface MaterialMovementsReport {
+  month: string;
+  movements: MaterialMovement[];
+  jobTotals: JobMovementTotal[];
+  totalReceivedCost: number;
+  totalConsumedCost: number;
+}
+
+export interface InventoryTrendPoint {
+  month: string;
+  receivedCost: number;
+  consumedCost: number;
+  receivedPieces: number;
+  consumedPieces: number;
+  /** Value of on-hand (non-consumed) inventory at month end, from movement history */
+  inventoryValue: number;
+  availablePieces: number;
+}
+
+export type EstimateBomPartPricingStatus = typeof EstimateBomPartPricingStatus[keyof typeof EstimateBomPartPricingStatus];
+
+
+export const EstimateBomPartPricingStatus = {
+  matched: 'matched',
+  needs_quote: 'needs_quote',
+  manual: 'manual',
+} as const;
+
+export interface EstimateBomPart {
+  id: number;
+  /** @nullable */
+  partMark?: string | null;
+  /** @minimum 1 */
+  quantity: number;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  description?: string | null;
+  pricingStatus: EstimateBomPartPricingStatus;
+  /** @nullable */
+  catalogItemId?: number | null;
+  /** @nullable */
+  catalogUnitPrice?: number | null;
+  /** @nullable */
+  catalogPriceUnit?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  quotedUnitPrice?: number | null;
+  /** @nullable */
+  quotedPriceUnit?: string | null;
+  /** @nullable */
+  quoteSource?: string | null;
+  isMisc: boolean;
+  /**
+     * Extended cost for this line (per assembly quantity), when priceable
+     * @nullable
+     */
+  lineCost?: number | null;
+}
+
+export interface EstimateBomAssembly {
+  id: number;
+  mark: string;
+  /** @minimum 1 */
+  quantity: number;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  finish?: string | null;
+  parts: EstimateBomPart[];
+}
+
+export interface EstimateBomView {
+  assemblyCount: number;
+  partCount: number;
+  totalPieces: number;
+  /** Sum of priceable line costs */
+  materialCost: number;
+  needsQuoteCount: number;
+  manualCount: number;
+  assemblies: EstimateBomAssembly[];
+  totals: BomMaterialTotal[];
+}
+
+export interface EstimateBomMaterialMatch {
+  /** Pipe-delimited profileType|profileSize|grade key */
+  key: string;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  pieces: number;
+  /** @nullable */
+  totalLengthIn?: number | null;
+  /** True when a confident (exact) catalog match was found */
+  matched: boolean;
+  /** @nullable */
+  catalogItemId?: number | null;
+  /** @nullable */
+  catalogUnitPrice?: number | null;
+  /** @nullable */
+  catalogPriceUnit?: string | null;
+}
+
+export interface EstimateBomImportPreview {
+  bom: BomView;
+  materials: EstimateBomMaterialMatch[];
+  unmatchedCount: number;
+}
+
+export interface EstimateBomImportPartInput {
+  /** @nullable */
+  partMark?: string | null;
+  /** @minimum 1 */
+  quantity: number;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  description?: string | null;
+}
+
+export interface EstimateBomImportAssemblyInput {
+  mark: string;
+  /** @minimum 1 */
+  quantity: number;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  finish?: string | null;
+  parts: EstimateBomImportPartInput[];
+}
+
+export type EstimateBomMaterialResolutionAction = typeof EstimateBomMaterialResolutionAction[keyof typeof EstimateBomMaterialResolutionAction];
+
+
+export const EstimateBomMaterialResolutionAction = {
+  match: 'match',
+  needs_quote: 'needs_quote',
+  manual: 'manual',
+} as const;
+
+export interface EstimateBomMaterialResolution {
+  /** Pipe-delimited profileType|profileSize|grade key */
+  key: string;
+  action: EstimateBomMaterialResolutionAction;
+  /**
+     * Required when action is match
+     * @nullable
+     */
+  catalogItemId?: number | null;
+  /**
+     * Required when action is manual
+     * @minimum 0
+     * @nullable
+     */
+  manualUnitPrice?: number | null;
+  /**
+     * per_foot | per_piece | per_lb (manual action)
+     * @nullable
+     */
+  manualPriceUnit?: string | null;
+  /** @nullable */
+  quoteSource?: string | null;
+  /** Mark these parts as misc/hardware (always included in RFQ export) */
+  isMisc?: boolean;
+}
+
+export interface EstimateBomCommitInput {
+  assemblies: EstimateBomImportAssemblyInput[];
+  resolutions: EstimateBomMaterialResolution[];
+}
+
+export interface EstimateBomAssemblyInput {
+  /** @minLength 1 */
+  mark: string;
+  /** @minimum 1 */
+  quantity?: number;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  finish?: string | null;
+}
+
+export interface EstimateBomAssemblyUpdate {
+  /** @minLength 1 */
+  mark?: string;
+  /** @minimum 1 */
+  quantity?: number;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  finish?: string | null;
+}
+
+export interface EstimateBomPartInput {
+  /** @nullable */
+  partMark?: string | null;
+  /** @minimum 1 */
+  quantity: number;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  description?: string | null;
+  isMisc?: boolean;
+}
+
+export type EstimateBomPartUpdatePricingStatus = typeof EstimateBomPartUpdatePricingStatus[keyof typeof EstimateBomPartUpdatePricingStatus];
+
+
+export const EstimateBomPartUpdatePricingStatus = {
+  matched: 'matched',
+  needs_quote: 'needs_quote',
+  manual: 'manual',
+} as const;
+
+export interface EstimateBomPartUpdate {
+  /** @nullable */
+  partMark?: string | null;
+  /** @minimum 1 */
+  quantity?: number;
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  /** @nullable */
+  lengthIn?: number | null;
+  /** @nullable */
+  description?: string | null;
+  pricingStatus?: EstimateBomPartUpdatePricingStatus;
+  /** @nullable */
+  catalogItemId?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  quotedUnitPrice?: number | null;
+  /** @nullable */
+  quotedPriceUnit?: string | null;
+  /** @nullable */
+  quoteSource?: string | null;
+  isMisc?: boolean;
+}
+
+export interface RfqItem {
+  /** @nullable */
+  profileType?: string | null;
+  /** @nullable */
+  profileSize?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  /** @nullable */
+  description?: string | null;
+  pieces: number;
+  /** @nullable */
+  totalLengthIn?: number | null;
+  isMisc: boolean;
+  /** @nullable */
+  quoteSource?: string | null;
+}
+
+export interface EstimatePricingSummary {
+  materialCost: number;
+  laborCost: number;
+  subtotal: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  marginPercent: number;
+  marginAmount: number;
+  total: number;
+  /** Materials still awaiting a quote (not included in cost) */
+  needsQuoteCount: number;
+}
+
+export interface EstimateLaborLine {
+  id: number;
+  trade: string;
+  /** @minimum 0 */
+  hours: number;
+  /** @minimum 0 */
+  hourlyRate: number;
+  cost: number;
+  /** @nullable */
+  notes?: string | null;
+  sortIndex?: number;
+}
+
+export interface EstimateLaborLineInput {
+  /** @minLength 1 */
+  trade: string;
+  /** @minimum 0 */
+  hours: number;
+  /**
+     * Defaults to the company's configured rate for the trade
+     * @minimum 0
+     * @nullable
+     */
+  hourlyRate?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface EstimateLaborLineUpdate {
+  /** @minLength 1 */
+  trade?: string;
+  /** @minimum 0 */
+  hours?: number;
+  /** @minimum 0 */
+  hourlyRate?: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface LaborRate {
+  id: number;
+  trade: string;
+  /** @minimum 0 */
+  hourlyRate: number;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LaborRateInput {
+  /** @minLength 1 */
+  trade: string;
+  /** @minimum 0 */
+  hourlyRate: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface LaborRateUpdate {
+  /** @minLength 1 */
+  trade?: string;
+  /** @minimum 0 */
+  hourlyRate?: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type RfqItemList = RfqItem[];
+
+export type EstimateLaborLineList = EstimateLaborLine[];
+
+export type LaborRateList = LaborRate[];
+
+export interface VendorStockLength {
+  id: number;
+  vendorId: number;
+  /**
+     * Profile type this length applies to; null = all profiles
+     * @nullable
+     */
+  profileType?: string | null;
+  /**
+     * Usable stock length in inches
+     * @minimum 1
+     */
+  lengthIn: number;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface VendorStockLengthInput {
+  /** @nullable */
+  profileType?: string | null;
+  /** @minimum 1 */
+  lengthIn: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface NestingComputeInput {
+  /**
+     * Saw blade kerf in inches (default 0.25)
+     * @minimum 0
+     */
+  kerfIn?: number;
+}
+
+export interface NestingCut {
+  /** @nullable */
+  partId?: number | null;
+  lengthIn: number;
+  quantity: number;
+  label: string;
+}
+
+export type NestingBarSource = typeof NestingBarSource[keyof typeof NestingBarSource];
+
+
+export const NestingBarSource = {
+  stock: 'stock',
+  remnant: 'remnant',
+} as const;
+
+export interface NestingBar {
+  source: NestingBarSource;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
+  stockLengthIn: number;
+  wasteIn: number;
+  /** @nullable */
+  remnantRef?: string | null;
+  cuts: NestingCut[];
+}
+
+export interface NestingMissingPart {
+  partId: number;
+  lengthIn: number;
+  label: string;
+  reason: string;
+}
+
+export interface NestingOption {
+  vendorId: number;
+  vendorName: string;
+  stockLengthIn: number;
+  /** True when all demanded pieces fit on this stock length. Incomplete options must not be accepted. */
+  isComplete: boolean;
+  /** Parts that cannot fit on this stock length (empty when isComplete=true) */
+  missingParts: NestingMissingPart[];
+  bars: NestingBar[];
+  totalStockIn: number;
+  totalUsedIn: number;
+  totalWasteIn: number;
+  wastePercent: number;
+}
+
+export interface NestingUnnestable {
+  partId: number;
+  lengthIn: number;
+  label: string;
+  reason: string;
+}
+
+export interface NestingGroupResult {
+  profileType: string;
+  profileSize: string;
+  grade: string;
+  /** Options ranked by waste% ascending */
+  options: NestingOption[];
+  unnestable: NestingUnnestable[];
+}
+
+export interface NestingComputeResult {
+  kerfIn: number;
+  groups: NestingGroupResult[];
+}
+
+export interface AcceptNestingOptionGroup {
+  profileType: string;
+  profileSize: string;
+  grade: string;
+  /** Vendor whose stock length was selected — stable identity for the chosen option */
+  vendorId: number;
+  /** Exact stock length in inches of the selected option — stable identity alongside vendorId */
+  stockLengthIn: number;
+}
+
+export interface AcceptNestingInput {
+  /** @minimum 0 */
+  kerfIn: number;
+  groups: AcceptNestingOptionGroup[];
+}
+
+export interface NestingPlanGroup {
+  profileType: string;
+  profileSize: string;
+  grade: string;
+  bars: NestingBar[];
+  totalStockIn: number;
+  totalWasteIn: number;
+  wastePercent: number;
+}
+
+export type NestingPlanStatus = typeof NestingPlanStatus[keyof typeof NestingPlanStatus];
+
+
+export const NestingPlanStatus = {
+  draft: 'draft',
+  accepted: 'accepted',
+} as const;
+
+export interface NestingPlan {
+  id: number;
+  jobId: number;
+  status: NestingPlanStatus;
+  kerfIn: number;
+  groups: NestingPlanGroup[];
+  createdAt: string;
+  /** @nullable */
+  acceptedAt?: string | null;
+}
+
+export type NestingCutListBarSource = typeof NestingCutListBarSource[keyof typeof NestingCutListBarSource];
+
+
+export const NestingCutListBarSource = {
+  stock: 'stock',
+  remnant: 'remnant',
+} as const;
+
+export interface NestingCutListBar {
+  barIndex: number;
+  source: NestingCutListBarSource;
+  /** @nullable */
+  vendorName?: string | null;
+  stockLengthIn: number;
+  wasteIn: number;
+  wastePercent: number;
+  /** @nullable */
+  remnantRef?: string | null;
+  cuts: NestingCut[];
+}
+
+export interface NestingCutListGroup {
+  profileType: string;
+  profileSize: string;
+  grade: string;
+  bars: NestingCutListBar[];
+  totalBars: number;
+  totalStockIn: number;
+  totalWasteIn: number;
+  wastePercent: number;
+}
+
+export interface NestingCutList {
+  planId: number;
+  jobId: number;
+  kerfIn: number;
+  groups: NestingCutListGroup[];
 }
 
 export type ListEstimatesParams = {
@@ -950,6 +2749,11 @@ export const ListCustomersStatus = {
   inactive: 'inactive',
 } as const;
 
+export type ListVendorsParams = {
+status?: VendorStatus;
+search?: string;
+};
+
 export type ListPurchaseOrdersParams = {
 status?: ListPurchaseOrdersStatus;
 search?: string;
@@ -965,3 +2769,50 @@ export const ListPurchaseOrdersStatus = {
   rejected: 'rejected',
 } as const;
 
+export type ListInventoryItemsParams = {
+status?: InventoryStatus;
+search?: string;
+jobId?: number;
+};
+
+export type GetMaterialMovementsReportParams = {
+/**
+ * Calendar month, YYYY-MM
+ * @pattern ^\d{4}-\d{2}$
+ */
+month: string;
+};
+
+export type GetInventoryTrendReportParams = {
+/**
+ * Number of trailing months (default 12)
+ */
+months?: number;
+};
+
+export type ListNcrsParams = {
+jobId?: number;
+status?: ListNcrsStatus;
+};
+
+export type ListNcrsStatus = typeof ListNcrsStatus[keyof typeof ListNcrsStatus];
+
+
+export const ListNcrsStatus = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export type ListSubstitutionRequestsParams = {
+jobId?: number;
+status?: ListSubstitutionRequestsStatus;
+};
+
+export type ListSubstitutionRequestsStatus = typeof ListSubstitutionRequestsStatus[keyof typeof ListSubstitutionRequestsStatus];
+
+
+export const ListSubstitutionRequestsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;

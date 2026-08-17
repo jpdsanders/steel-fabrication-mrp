@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import {
   useListPurchaseOrders,
   getListPurchaseOrdersQueryKey,
   type ListPurchaseOrdersStatus,
 } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -22,8 +24,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search } from "lucide-react";
+import { Search, Settings } from "lucide-react";
 import { poStatusBadge } from "@/components/purchasing/status";
+import { formatCurrency } from "@/components/purchasing/vendorStatus";
+import DueInCard from "@/components/purchasing/DueInCard";
 
 export default function PurchasingList() {
   const [, setLocation] = useLocation();
@@ -40,12 +44,21 @@ export default function PurchasingList() {
 
   return (
     <div className="p-8 space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Purchasing</h1>
-        <p className="text-muted-foreground mt-1">
-          Materials purchase orders and PM review
-        </p>
+      <div className="flex justify-between items-start gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Purchasing</h1>
+          <p className="text-muted-foreground mt-1">
+            Materials purchase orders and PM review
+          </p>
+        </div>
+        <Link href="/purchasing/settings">
+          <Button variant="outline" className="gap-2" data-testid="button-purchasing-settings">
+            <Settings className="w-4 h-4" /> Settings
+          </Button>
+        </Link>
       </div>
+
+      <DueInCard />
 
       <div className="flex gap-3 items-center">
         <div className="relative flex-1 max-w-sm">
@@ -81,9 +94,11 @@ export default function PurchasingList() {
               <TableRow>
                 <TableHead>PO #</TableHead>
                 <TableHead>Job</TableHead>
+                <TableHead>Vendor</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead className="text-right">Lines</TableHead>
                 <TableHead className="text-right">Pieces</TableHead>
+                <TableHead className="text-right">Total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
@@ -96,14 +111,25 @@ export default function PurchasingList() {
                   onClick={() => setLocation(`/purchasing/${po.id}`)}
                   data-testid={`po-list-row-${po.id}`}
                 >
-                  <TableCell className="font-medium">{po.poNumber}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {po.poNumber}
+                      {(po.revision ?? 0) > 0 && (
+                        <Badge variant="outline" data-testid={`po-revision-${po.id}`}>
+                          Rev {po.revision}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium">{po.jobNumber}</div>
                     <div className="text-xs text-muted-foreground">{po.jobName}</div>
                   </TableCell>
+                  <TableCell>{po.vendorName ?? "—"}</TableCell>
                   <TableCell>{po.customer}</TableCell>
                   <TableCell className="text-right">{po.lineCount}</TableCell>
                   <TableCell className="text-right">{po.totalPieces}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(po.totalAmount)}</TableCell>
                   <TableCell>{poStatusBadge(po.status)}</TableCell>
                   <TableCell>{new Date(po.createdAt).toLocaleDateString()}</TableCell>
                 </TableRow>
