@@ -28,7 +28,16 @@ import AdminUsers from "@/pages/admin/Users";
 import AdminMaterialCatalog from "@/pages/admin/MaterialCatalog";
 import AdminLaborRates from "@/pages/admin/LaborRates";
 import Inventory from "@/pages/Inventory";
+import ImportPage from "@/pages/ImportPage";
 import MaterialReports from "@/pages/MaterialReports";
+import ReportsHub from "@/pages/reports/ReportsHub";
+import LaborReport from "@/pages/reports/LaborReport";
+import EstimatingReports from "@/pages/reports/EstimatingReports";
+import PurchasingReports from "@/pages/reports/PurchasingReports";
+import CostingReport from "@/pages/reports/CostingReport";
+import NestingReports from "@/pages/reports/NestingReports";
+import RfiReport from "@/pages/reports/RfiReport";
+import CloseoutReports from "@/pages/reports/CloseoutReports";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -95,7 +104,16 @@ function Router() {
               <Route path="/purchasing/:id" component={PurchaseOrderDetail} />
               <Route path="/vendors" component={Vendors} />
               <Route path="/inventory" component={Inventory} />
+              <Route path="/import" component={ImportPage} />
               <Route path="/reports/materials" component={MaterialReports} />
+              <Route path="/reports/labor" component={LaborReport} />
+              <Route path="/reports/estimating" component={EstimatingReports} />
+              <Route path="/reports/purchasing" component={PurchasingReports} />
+              <Route path="/reports/costing" component={CostingReport} />
+              <Route path="/reports/nesting" component={NestingReports} />
+              <Route path="/reports/rfis" component={RfiReport} />
+              <Route path="/reports/closeout" component={CloseoutReports} />
+              <Route path="/reports" component={ReportsHub} />
               <Route path="/customers" component={Customers} />
               <Route path="/customers/:id" component={CustomerDetail} />
               <Route path="/employees" component={Employees} />

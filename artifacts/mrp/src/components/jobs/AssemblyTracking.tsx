@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUpdateBomAssembly,
+  useListStageLibrary,
   useListProcessingPathOptions,
   useCreateProcessingPathOption,
   getListProcessingPathOptionsQueryKey,
@@ -68,30 +69,15 @@ import {
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ─── Stage model (matches dashboard grid) ─────────────────────────────────────
+// ─── Stage model (driven by the company's Stage Library pipeline) ─────────────
 
-type BucketKey =
-  | "notStarted"
-  | "Parts Processing"
-  | "Sent to Vendor"
-  | "At Vendor"
-  | "Ready for Pickup"
-  | "Cut"
-  | "Fit"
-  | "Welded"
-  | "Inspected"
-  | "Shipped"
-  | "onHold";
-
-const VENDOR_STAGES = ["Sent to Vendor", "At Vendor", "Ready for Pickup"];
-const SHOP_STAGES = ["Parts Processing", "Cut", "Fit", "Welded", "Inspected", "Shipped"];
-const KNOWN_STAGES = new Set([...VENDOR_STAGES, ...SHOP_STAGES]);
+type BucketKey = string; // "notStarted" | "onHold" | a pipeline stage name
 
 /** Bucket an assembly the same way the dashboard grid does. */
-function bucketOf(asm: BomAssembly): BucketKey {
+function bucketOf(asm: BomAssembly, knownStages: Set<string>): BucketKey {
   if (asm.onHold) return "onHold";
-  if (asm.currentStage && KNOWN_STAGES.has(asm.currentStage)) {
-    return asm.currentStage as BucketKey;
+  if (asm.currentStage && knownStages.has(asm.currentStage.toLowerCase())) {
+    return asm.currentStage.toLowerCase();
   }
   return "notStarted";
 }
@@ -187,34 +173,28 @@ function StageBadge({ stageName }: { stageName: string | null | undefined }) {
 
 // ─── Per-assembly pipeline stepper ────────────────────────────────────────────
 
-const ASSEMBLY_PIPELINE = [
-  "Parts Processing",
-  "Sent to Vendor",
-  "At Vendor",
-  "Ready for Pickup",
-  "Cut",
-  "Fit",
-  "Welded",
-  "Inspected",
-  "Shipped",
-];
-
 function AssemblyPipelineStepper({
+  pipeline,
   currentStage,
   onSelectStage,
   disabled = false,
 }: {
+  pipeline: string[];
   currentStage: string | null | undefined;
   onSelectStage?: (stage: string | null) => void;
   disabled?: boolean;
 }) {
-  const currentIdx = currentStage ? ASSEMBLY_PIPELINE.indexOf(currentStage) : -1;
+  const currentIdx = currentStage
+    ? pipeline.findIndex((n) => n.toLowerCase() === currentStage.toLowerCase())
+    : -1;
   const clickable = !!onSelectStage && !disabled;
+  const finalIdx = pipeline.length - 1;
   return (
     <div className="flex items-start gap-0 overflow-x-auto pb-1">
-      {ASSEMBLY_PIPELINE.map((name, i) => {
+      {pipeline.map((name, i) => {
         const isDone = currentIdx >= 0 && i < currentIdx;
         const isCurrent = i === currentIdx;
+        const isFinal = i === finalIdx;
         return (
           <div key={name} className="flex items-center shrink-0">
             {i > 0 && (
@@ -224,16 +204,18 @@ function AssemblyPipelineStepper({
             )}
             <button
               type="button"
-              disabled={!clickable}
+              disabled={!clickable || (isFinal && !isCurrent)}
               onClick={() =>
                 onSelectStage?.(isCurrent ? null : name)
               }
               title={
-                clickable
-                  ? isCurrent
-                    ? "Click to clear stage (back to Not Started)"
-                    : `Set stage to ${name}`
-                  : undefined
+                isFinal && !isCurrent
+                  ? "Set automatically when a shipment departs"
+                  : clickable
+                    ? isCurrent
+                      ? "Click to clear stage (back to Not Started)"
+                      : `Set stage to ${name}`
+                    : undefined
               }
               data-testid={`stepper-stage-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
               className={`flex flex-col items-center gap-1 w-14 rounded-md ${
@@ -268,10 +250,12 @@ function AssemblyDetailPanel({
   assembly,
   jobNumber,
   jobId,
+  pipeline,
 }: {
   assembly: BomAssembly;
   jobNumber: string;
   jobId: number;
+  pipeline: string[];
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -352,6 +336,7 @@ function AssemblyDetailPanel({
           </span>
         </p>
         <AssemblyPipelineStepper
+          pipeline={pipeline}
           currentStage={assembly.currentStage}
           disabled={updateAssembly.isPending}
           onSelectStage={(stage) => save({ currentStage: stage })}
@@ -410,9 +395,14 @@ function AssemblyDetailPanel({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Not Started</SelectItem>
-                  {ASSEMBLY_PIPELINE.map((s) => (
-                    <SelectItem key={s} value={s}>
+                  {pipeline.map((s, i) => (
+                    <SelectItem
+                      key={s}
+                      value={s}
+                      disabled={i === pipeline.length - 1 && s !== assembly.currentStage}
+                    >
                       {s}
+                      {i === pipeline.length - 1 ? " (via shipment departure)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -959,10 +949,12 @@ function AssemblyRow({
   assembly,
   jobNumber,
   jobId,
+  pipeline,
 }: {
   assembly: BomAssembly;
   jobNumber: string;
   jobId: number;
+  pipeline: string[];
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -998,7 +990,7 @@ function AssemblyRow({
       {expanded && (
         <TableRow>
           <TableCell colSpan={7} className="p-0">
-            <AssemblyDetailPanel assembly={assembly} jobNumber={jobNumber} jobId={jobId} />
+            <AssemblyDetailPanel assembly={assembly} jobNumber={jobNumber} jobId={jobId} pipeline={pipeline} />
           </TableCell>
         </TableRow>
       )}
@@ -1024,14 +1016,25 @@ export default function AssemblyTracking({
   const [bucketFilter, setBucketFilter] = useState<BucketKey | null>(null);
   const [search, setSearch] = useState("");
 
+  const { data: stageLibrary } = useListStageLibrary();
+  const pipelineStages = useMemo(() => stageLibrary ?? [], [stageLibrary]);
+  const pipelineNames = useMemo(
+    () => pipelineStages.map((s) => s.name),
+    [pipelineStages],
+  );
+  const knownStages = useMemo(
+    () => new Set(pipelineNames.map((n) => n.toLowerCase())),
+    [pipelineNames],
+  );
+
   const counts = useMemo(() => {
     const c = new Map<BucketKey, number>();
     for (const asm of assemblies) {
-      const b = bucketOf(asm);
+      const b = bucketOf(asm, knownStages);
       c.set(b, (c.get(b) ?? 0) + qtyOf(asm));
     }
     return c;
-  }, [assemblies]);
+  }, [assemblies, knownStages]);
 
   const totalQty = useMemo(
     () => assemblies.reduce((s, a) => s + qtyOf(a), 0),
@@ -1041,14 +1044,14 @@ export default function AssemblyTracking({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return assemblies.filter((asm) => {
-      if (bucketFilter && bucketOf(asm) !== bucketFilter) return false;
+      if (bucketFilter && bucketOf(asm, knownStages) !== bucketFilter) return false;
       if (q) {
         const hay = `${asm.mark} ${asm.description ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [assemblies, bucketFilter, search]);
+  }, [assemblies, bucketFilter, search, knownStages]);
 
   const toggleBucket = (b: BucketKey) =>
     setBucketFilter((cur) => (cur === b ? null : b));
@@ -1084,34 +1087,17 @@ export default function AssemblyTracking({
           />
           <div className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold pl-0.5">
-              Vendor Processing
+              Production Pipeline
             </span>
-            <div className="flex gap-1">
-              {VENDOR_STAGES.map((s) => (
+            <div className="flex gap-1 flex-wrap">
+              {pipelineStages.map((s) => (
                 <StageCountChip
-                  key={s}
-                  label={s === "Ready for Pickup" ? "Ready PU" : s.replace(" to Vendor", "")}
-                  count={counts.get(s as BucketKey) ?? 0}
-                  active={bucketFilter === s}
-                  tone="vendor"
-                  onClick={() => toggleBucket(s as BucketKey)}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold pl-0.5">
-              In-Shop Pipeline
-            </span>
-            <div className="flex gap-1">
-              {SHOP_STAGES.map((s) => (
-                <StageCountChip
-                  key={s}
-                  label={s === "Parts Processing" ? "Parts Proc." : s}
-                  count={counts.get(s as BucketKey) ?? 0}
-                  active={bucketFilter === s}
-                  tone="shop"
-                  onClick={() => toggleBucket(s as BucketKey)}
+                  key={s.id}
+                  label={s.name}
+                  count={counts.get(s.name.toLowerCase()) ?? 0}
+                  active={bucketFilter === s.name.toLowerCase()}
+                  tone={s.stageType === "vendor" ? "vendor" : "shop"}
+                  onClick={() => toggleBucket(s.name.toLowerCase())}
                 />
               ))}
             </div>
@@ -1180,7 +1166,7 @@ export default function AssemblyTracking({
                 </TableRow>
               ) : (
                 filtered.map((asm, i) => (
-                  <AssemblyRow key={asm.id ?? i} assembly={asm} jobNumber={jobNumber} jobId={jobId} />
+                  <AssemblyRow key={asm.id ?? i} assembly={asm} jobNumber={jobNumber} jobId={jobId} pipeline={pipelineNames} />
                 ))
               )}
             </TableBody>

@@ -8,7 +8,11 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { requireAuth, requireSuperAdmin } from "../middlewares/auth";
+import {
+  requireAuth,
+  requireSuperAdmin,
+  isAuthBypassActive,
+} from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -66,8 +70,31 @@ async function buildAuthDto(userId: number, activeCompanyId: number) {
     companySlug: company.slug,
     roles,
     ...(companies !== undefined ? { companies } : {}),
+    // Marker for the dev-only auth bypass: applied to EVERY auth DTO (login,
+    // /me, switch-company) so the frontend's test-mode banner can never be
+    // dropped by replacing user state from any of these responses.
+    ...(isAuthBypassActive() ? { authBypass: true } : {}),
   };
 }
+
+/**
+ * GET /auth/companies — public, lightweight company identity list for the
+ * login screen (name + branding only; no sensitive data).
+ */
+router.get("/auth/companies", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id: companiesTable.id,
+      name: companiesTable.name,
+      slug: companiesTable.slug,
+      logoUrl: companiesTable.logoUrl,
+      primaryColor: companiesTable.primaryColor,
+      accentColor: companiesTable.accentColor,
+    })
+    .from(companiesTable)
+    .orderBy(companiesTable.name);
+  res.json(rows);
+});
 
 /** POST /auth/login */
 router.post("/auth/login", async (req, res): Promise<void> => {

@@ -12,10 +12,10 @@ import { eq, and, inArray, asc, sql } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import {
-  parseKissFile,
   KissParseError,
   type ParsedBom,
 } from "../lib/kissParser";
+import { parseBomUpload, bomUploadExtError } from "../lib/bomUpload";
 import { parseIntParam } from "../lib/params";
 import {
   CommitEstimateBomImportBody,
@@ -371,16 +371,14 @@ router.post(
       return;
     }
     const originalName = Buffer.from(req.file.originalname, "latin1").toString("utf8");
-    const ext = path.extname(originalName).toLowerCase();
-    if (ext !== ".kss") {
-      res.status(400).json({
-        error: `File type "${ext || "unknown"}" is not allowed. Upload a KISS (.kss) file.`,
-      });
+    const extError = bomUploadExtError(originalName);
+    if (extError) {
+      res.status(400).json({ error: extError });
       return;
     }
     let parsed: ParsedBom;
     try {
-      parsed = parseKissFile(req.file.buffer.toString("utf8"));
+      parsed = parseBomUpload(originalName, req.file.buffer);
     } catch (err) {
       if (err instanceof KissParseError) {
         res.status(400).json({ error: err.message });
@@ -527,7 +525,7 @@ router.post(
         continue;
       }
       if (r.action === "match" && r.catalogItemId == null) missing.push(key);
-      if (r.action === "manual" && r.manualUnitPrice == null) missing.push(key);
+      if (r.action === "manual" && (r.manualUnitPrice == null || r.manualUnitPrice <= 0)) missing.push(key);
     }
     if (missing.length > 0) {
       res.status(400).json({

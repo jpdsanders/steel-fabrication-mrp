@@ -34,12 +34,90 @@ declare global {
   }
 }
 
+/**
+ * Dev-only auth bypass (Update Brief 02 §4).
+ * Structurally inert in production: the NODE_ENV check is part of this
+ * function, so setting DEV_BYPASS_AUTH=true alone can never activate the
+ * bypass when the app runs with NODE_ENV=production.
+ */
+export function isAuthBypassActive(): boolean {
+  // Explicit development allow-list: an unset or unknown NODE_ENV (e.g. a
+  // misconfigured production deployment) can never enable the bypass.
+  return (
+    process.env.NODE_ENV === "development" &&
+    process.env.DEV_BYPASS_AUTH === "true"
+  );
+}
+
+const BYPASS_USER_EMAIL =
+  process.env.DEV_BYPASS_USER_EMAIL || "jsanders@exclusivefab.com";
+
+/** Populate req.auth as the designated test user. Returns false if unavailable. */
+async function loadBypassAuth(req: Request): Promise<boolean> {
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, BYPASS_USER_EMAIL.toLowerCase()))
+    .limit(1);
+  if (!user || !user.active) return false;
+
+  // First available company: any company for super-admins, else first role row
+  let companyId: number | undefined;
+  let roles: string[];
+  if (user.superAdmin) {
+    const [first] = await db
+      .select({ id: companiesTable.id })
+      .from(companiesTable)
+      .orderBy(companiesTable.name)
+      .limit(1);
+    companyId = first?.id;
+    roles = ["super_admin"];
+  } else {
+    const [firstRole] = await db
+      .select({
+        companyId: userCompanyRolesTable.companyId,
+        role: userCompanyRolesTable.role,
+      })
+      .from(userCompanyRolesTable)
+      .where(eq(userCompanyRolesTable.userId, user.id))
+      .limit(1);
+    companyId = firstRole?.companyId;
+    roles = firstRole ? [firstRole.role] : [];
+  }
+  if (!companyId) return false;
+
+  // Respect an explicit company switch stored on the session (super-admins)
+  const session = req.session as { activeCompanyId?: number };
+  if (session.activeCompanyId && user.superAdmin) {
+    companyId = session.activeCompanyId;
+  }
+
+  req.auth = {
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      superAdmin: user.superAdmin,
+      active: user.active,
+    },
+    companyId,
+    roles,
+  };
+  return true;
+}
+
 /** Load user + company context from session. Attaches req.auth if valid. */
 export async function loadAuth(
   req: Request,
   _res: Response,
   next: NextFunction,
 ): Promise<void> {
+  if (isAuthBypassActive()) {
+    await loadBypassAuth(req);
+    next();
+    return;
+  }
+
   const session = req.session as { userId?: number; activeCompanyId?: number };
   if (!session.userId) {
     next();

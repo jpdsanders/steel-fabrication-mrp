@@ -335,3 +335,138 @@ SQL
 
 # Seed the three companies + super-admin if missing (idempotent).
 pnpm --filter @workspace/scripts run seed:companies
+
+# --- Stage library pipeline rework (task: production stage / routing) ---
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+-- Stage library pipeline columns + seed + assembly stage normalization (idempotent)
+ALTER TABLE stage_library ADD COLUMN IF NOT EXISTS order_index integer NOT NULL DEFAULT 0;
+ALTER TABLE stage_library ADD COLUMN IF NOT EXISTS stage_type text NOT NULL DEFAULT 'in_house';
+ALTER TABLE stage_library ADD COLUMN IF NOT EXISTS is_ready_to_ship_gate boolean NOT NULL DEFAULT false;
+
+-- Dedupe case-insensitive duplicate names per company (keep lowest id)
+DELETE FROM stage_library a USING stage_library b
+  WHERE a.company_id = b.company_id AND lower(a.name) = lower(b.name) AND a.id > b.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS stage_library_company_name_unique
+  ON stage_library (company_id, lower(name));
+CREATE UNIQUE INDEX IF NOT EXISTS stage_library_one_gate_per_company
+  ON stage_library (company_id) WHERE is_ready_to_ship_gate;
+
+-- Seed the canonical 9-stage pipeline into every company's library.
+WITH canon(name, order_index, stage_type, gate) AS (
+  VALUES
+    ('Parts Processing', 0, 'in_house', false),
+    ('Sent to Vendor',   1, 'vendor',   false),
+    ('At Vendor',        2, 'vendor',   false),
+    ('Ready for Pickup', 3, 'vendor',   false),
+    ('Cut',              4, 'in_house', false),
+    ('Fit',              5, 'in_house', false),
+    ('Welded',           6, 'in_house', false),
+    ('Inspected',        7, 'in_house', true),
+    ('Shipped',          8, 'in_house', false)
+)
+INSERT INTO stage_library (company_id, name, order_index, stage_type, is_ready_to_ship_gate)
+SELECT c.id, canon.name, canon.order_index, canon.stage_type, canon.gate
+FROM companies c CROSS JOIN canon
+WHERE NOT EXISTS (
+  SELECT 1 FROM stage_library sl
+  WHERE sl.company_id = c.id AND lower(sl.name) = lower(canon.name)
+);
+
+-- One-time alignment for companies without a gate stage yet.
+WITH canon(name, order_index, stage_type, gate) AS (
+  VALUES
+    ('Parts Processing', 0, 'in_house', false),
+    ('Sent to Vendor',   1, 'vendor',   false),
+    ('At Vendor',        2, 'vendor',   false),
+    ('Ready for Pickup', 3, 'vendor',   false),
+    ('Cut',              4, 'in_house', false),
+    ('Fit',              5, 'in_house', false),
+    ('Welded',           6, 'in_house', false),
+    ('Inspected',        7, 'in_house', true),
+    ('Shipped',          8, 'in_house', false)
+)
+UPDATE stage_library sl
+SET order_index = canon.order_index,
+    stage_type = canon.stage_type,
+    is_ready_to_ship_gate = canon.gate
+FROM canon
+WHERE lower(sl.name) = lower(canon.name)
+  AND NOT EXISTS (
+    SELECT 1 FROM stage_library g
+    WHERE g.company_id = sl.company_id AND g.is_ready_to_ship_gate
+  );
+
+-- Normalize order_index where duplicates exist (canonical first, rest appended).
+WITH canon(name, ord) AS (
+  VALUES ('Parts Processing',0),('Sent to Vendor',1),('At Vendor',2),('Ready for Pickup',3),
+         ('Cut',4),('Fit',5),('Welded',6),('Inspected',7),('Shipped',8)
+),
+dup_companies AS (
+  SELECT company_id FROM stage_library
+  GROUP BY company_id, order_index HAVING count(*) > 1
+),
+ranked AS (
+  SELECT sl.id,
+         row_number() OVER (
+           PARTITION BY sl.company_id
+           ORDER BY COALESCE(c.ord, 100 + sl.order_index), sl.order_index, sl.id
+         ) - 1 AS new_index
+  FROM stage_library sl
+  LEFT JOIN canon c ON lower(c.name) = lower(sl.name)
+  WHERE sl.company_id IN (SELECT company_id FROM dup_companies)
+)
+UPDATE stage_library sl SET order_index = ranked.new_index
+FROM ranked WHERE sl.id = ranked.id AND sl.order_index <> ranked.new_index;
+
+-- Normalize existing assembly stages to the library's canonical casing.
+UPDATE bom_assemblies ba
+SET current_stage = sl.name
+FROM jobs j, stage_library sl
+WHERE ba.job_id = j.id
+  AND sl.company_id = j.company_id
+  AND ba.current_stage IS NOT NULL
+  AND lower(ba.current_stage) = lower(sl.name)
+  AND ba.current_stage <> sl.name;
+
+-- One-time: any legacy/custom rows that landed after 'Shipped' move BEFORE it —
+-- the terminal (shipped) stage must stay last, or departed assemblies reopen.
+CREATE TABLE IF NOT EXISTS app_migrations (key text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+DO $$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM app_migrations WHERE key = 'stage-library-terminal-last-v1') THEN
+  WITH ranked AS (
+    SELECT sl.id,
+           row_number() OVER (
+             PARTITION BY sl.company_id
+             ORDER BY (lower(sl.name) = 'shipped'), sl.order_index, sl.id
+           ) - 1 AS new_index
+    FROM stage_library sl
+    WHERE sl.company_id IN (
+      SELECT company_id FROM stage_library shipped
+      WHERE lower(shipped.name) = 'shipped'
+        AND EXISTS (
+          SELECT 1 FROM stage_library later
+          WHERE later.company_id = shipped.company_id
+            AND (later.order_index > shipped.order_index
+                 OR (later.order_index = shipped.order_index AND later.id > shipped.id))
+        )
+    )
+  )
+  UPDATE stage_library sl SET order_index = ranked.new_index
+  FROM ranked WHERE sl.id = ranked.id AND sl.order_index <> ranked.new_index;
+  INSERT INTO app_migrations (key) VALUES ('stage-library-terminal-last-v1');
+END IF; END $$;
+
+-- One-time: drop leftover job-level template names from the library.
+DO $$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM app_migrations WHERE key = 'stage-library-pipeline-v1') THEN
+  DELETE FROM stage_library sl
+  WHERE lower(sl.name) IN ('estimating','fabrication','welding','paint','inspection','shipping')
+    AND NOT sl.is_ready_to_ship_gate
+    AND NOT EXISTS (
+      SELECT 1 FROM bom_assemblies ba JOIN jobs j ON ba.job_id = j.id
+      WHERE j.company_id = sl.company_id AND lower(ba.current_stage) = lower(sl.name)
+    );
+  INSERT INTO app_migrations (key) VALUES ('stage-library-pipeline-v1');
+END IF; END $$;
+SQL

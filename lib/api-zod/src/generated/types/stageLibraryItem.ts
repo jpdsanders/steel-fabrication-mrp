@@ -5,9 +5,13 @@
  * Steel Fabrication MRP API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StageLibraryItemStageType } from './stageLibraryItemStageType';
 
 export interface StageLibraryItem {
   id: number;
   name: string;
+  orderIndex: number;
+  stageType: StageLibraryItemStageType;
+  isReadyToShipGate: boolean;
   createdAt: Date;
 }

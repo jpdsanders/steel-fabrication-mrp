@@ -6,6 +6,7 @@ import {
   usersTable,
   companiesTable,
   customersTable,
+  stageLibraryTable,
   bomAssembliesTable,
   shipmentsTable,
   shipmentAssembliesTable,
@@ -24,7 +25,13 @@ import {
 } from "@workspace/api-zod";
 import { parseIntParam } from "../lib/params";
 import { requireAuth } from "../middlewares/auth";
-import { isReadyToShip, SHIPPED_STAGE, INSPECTED_STAGE } from "../services/production";
+import {
+  isReadyToShip,
+  getCompanyPipeline,
+  gateStage,
+  finalStage,
+  type PipelineStage,
+} from "../services/production";
 import { buildHeatSheetEntries, type HeatSheetEntry } from "./inventory";
 
 const router: IRouter = Router();
@@ -52,7 +59,7 @@ async function loadShipment(shipmentId: number, companyId: number) {
   return row ?? null;
 }
 
-async function shipmentViews(shipments: ShipmentRow[]) {
+async function shipmentViews(pipeline: PipelineStage[], shipments: ShipmentRow[]) {
   if (shipments.length === 0) return [];
   const ids = shipments.map((s) => s.id);
   const [links, notifications, confirmations] = await Promise.all([
@@ -111,7 +118,7 @@ async function shipmentViews(shipments: ShipmentRow[]) {
           description: asm.description,
           currentStage: asm.currentStage,
           onHold: asm.onHold,
-          readyToShip: isReadyToShip(asm),
+          readyToShip: isReadyToShip(pipeline, asm),
         })),
       notification: notif
         ? {
@@ -139,8 +146,8 @@ async function shipmentViews(shipments: ShipmentRow[]) {
   });
 }
 
-async function shipmentView(s: ShipmentRow) {
-  const [view] = await shipmentViews([s]);
+async function shipmentView(pipeline: PipelineStage[], s: ShipmentRow) {
+  const [view] = await shipmentViews(pipeline, [s]);
   return view;
 }
 
@@ -159,7 +166,7 @@ router.get("/jobs/:jobId/shipments", requireAuth, async (req, res): Promise<void
     .from(shipmentsTable)
     .where(eq(shipmentsTable.jobId, job.id))
     .orderBy(desc(shipmentsTable.createdAt));
-  res.json(await shipmentViews(rows));
+  res.json(await shipmentViews(await getCompanyPipeline(companyId), rows));
 });
 
 router.post("/jobs/:jobId/shipments", requireAuth, async (req, res): Promise<void> => {
@@ -188,11 +195,21 @@ router.post("/jobs/:jobId/shipments", requireAuth, async (req, res): Promise<voi
     res.status(400).json({ error: "One or more assemblies do not belong to this job." });
     return;
   }
-  // Hard gate: every assembly must be Ready to Ship (Inspected, not on hold).
-  const notReady = assemblies.filter((a) => !isReadyToShip(a));
+  // Hard gate: every assembly must be Ready to Ship (at the company's gate
+  // stage and not on hold).
+  const pipeline = await getCompanyPipeline(companyId);
+  const gate = gateStage(pipeline);
+  if (!gate) {
+    res.status(409).json({
+      error:
+        "No Ready-to-Ship gate stage is configured in the Stage Library for this company.",
+    });
+    return;
+  }
+  const notReady = assemblies.filter((a) => !isReadyToShip(pipeline, a));
   if (notReady.length > 0) {
     res.status(409).json({
-      error: `Not Ready to Ship (must be Inspected and not on hold): ${notReady
+      error: `Not Ready to Ship (must be ${gate.name} and not on hold): ${notReady
         .map((a) => a.mark)
         .join(", ")}`,
     });
@@ -259,7 +276,7 @@ router.post("/jobs/:jobId/shipments", requireAuth, async (req, res): Promise<voi
     }
     throw err;
   }
-  res.status(201).json(await shipmentView(created));
+  res.status(201).json(await shipmentView(pipeline, created));
 });
 
 router.get("/shipments/:shipmentId", requireAuth, async (req, res): Promise<void> => {
@@ -267,7 +284,7 @@ router.get("/shipments/:shipmentId", requireAuth, async (req, res): Promise<void
   if (shipmentId === null) { res.status(400).json({ error: "Invalid shipment id" }); return; }
   const owned = await loadShipment(shipmentId, req.auth!.companyId);
   if (!owned) { res.status(404).json({ error: "Shipment not found" }); return; }
-  res.json(await shipmentView(owned.shipment));
+  res.json(await shipmentView(await getCompanyPipeline(req.auth!.companyId), owned.shipment));
 });
 
 router.delete("/shipments/:shipmentId", requireAuth, async (req, res): Promise<void> => {
@@ -315,7 +332,7 @@ router.post(
       notes: parsed.data.notes ?? null,
       notifiedBy: req.auth!.user.id,
     });
-    res.status(201).json(await shipmentView(owned.shipment));
+    res.status(201).json(await shipmentView(await getCompanyPipeline(req.auth!.companyId), owned.shipment));
   },
 );
 
@@ -345,7 +362,7 @@ router.post(
       signedBy: parsed.data.signedBy,
       discrepancyNotes: parsed.data.discrepancyNotes ?? null,
     });
-    res.status(201).json(await shipmentView(owned.shipment));
+    res.status(201).json(await shipmentView(await getCompanyPipeline(req.auth!.companyId), owned.shipment));
   },
 );
 
@@ -365,9 +382,41 @@ router.post(
     // written notification + signed load confirmation must exist, and every
     // linked assembly must STILL be Ready to Ship (it may have been put on
     // hold or moved to an earlier stage since the shipment was created).
+    const pipeline = await getCompanyPipeline(req.auth!.companyId);
+    const gate = gateStage(pipeline);
+    const shippedStage = finalStage(pipeline);
+    if (!gate || !shippedStage) {
+      res.status(409).json({
+        error:
+          "The Stage Library must have a Ready-to-Ship gate stage and a final (shipped) stage before shipments can depart.",
+      });
+      return;
+    }
     let updated: ShipmentRow;
     try {
       updated = await db.transaction(async (tx) => {
+        // Lock the pipeline snapshot: serializes with stage-library
+        // rename/reorder transactions (which take FOR UPDATE).
+        const lockedRows = await tx
+          .select()
+          .from(stageLibraryTable)
+          .where(eq(stageLibraryTable.companyId, req.auth!.companyId))
+          .orderBy(asc(stageLibraryTable.orderIndex), asc(stageLibraryTable.id))
+          .for("share");
+        const lockedPipeline = lockedRows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          orderIndex: r.orderIndex,
+          stageType: r.stageType,
+          isReadyToShipGate: r.isReadyToShipGate,
+        }));
+        const txGate = gateStage(lockedPipeline);
+        const txFinal = finalStage(lockedPipeline);
+        if (!txGate || !txFinal) {
+          throw new GateError(
+            "The Stage Library must have a Ready-to-Ship gate stage and a final (shipped) stage before shipments can depart.",
+          );
+        }
         const [notif] = await tx
           .select({ id: shipmentNotificationsTable.id })
           .from(shipmentNotificationsTable)
@@ -398,10 +447,10 @@ router.post(
           )
           .where(eq(shipmentAssembliesTable.shipmentId, owned.shipment.id))
           .for("update", { of: bomAssembliesTable });
-        const notReady = links.filter(({ asm }) => !isReadyToShip(asm));
+        const notReady = links.filter(({ asm }) => !isReadyToShip(lockedPipeline, asm));
         if (notReady.length > 0) {
           throw new GateError(
-            `Cannot depart — no longer Ready to Ship (must be Inspected and not on hold): ${notReady
+            `Cannot depart — no longer Ready to Ship (must be ${txGate.name} and not on hold): ${notReady
               .map(({ asm }) => asm.mark)
               .join(", ")}`,
           );
@@ -418,16 +467,16 @@ router.post(
           .returning();
         if (!row) throw new GateError("Shipment has already departed.");
         if (links.length > 0) {
-          // Conditional update: only rows that are still Inspected and not on
-          // hold may transition to Shipped. With the rows locked above, a
-          // count mismatch means an invariant violation — abort loudly.
+          // Conditional update: only rows still at the gate stage and not on
+          // hold may transition to the final (shipped) stage. With the rows
+          // locked above, a count mismatch means an invariant violation.
           const shipped = await tx
             .update(bomAssembliesTable)
-            .set({ currentStage: SHIPPED_STAGE })
+            .set({ currentStage: txFinal.name })
             .where(
               and(
                 inArray(bomAssembliesTable.id, links.map((l) => l.asm.id)),
-                eq(bomAssembliesTable.currentStage, INSPECTED_STAGE),
+                eq(bomAssembliesTable.currentStage, txGate.name),
                 eq(bomAssembliesTable.onHold, false),
               ),
             )
@@ -451,7 +500,7 @@ router.post(
       { shipmentId: updated.id, shipperNumber: updated.shipperNumber },
       "Shipment departed",
     );
-    res.json(await shipmentView(updated));
+    res.json(await shipmentView(await getCompanyPipeline(req.auth!.companyId), updated));
   },
 );
 
@@ -508,7 +557,8 @@ async function paperworkContext(
     .where(eq(shipmentAssembliesTable.shipmentId, shipment.id))
     .orderBy(asc(bomAssembliesTable.sortIndex));
   if (shipment.status !== "departed") {
-    const notReady = links.filter(({ asm }) => !isReadyToShip(asm));
+    const pipeline = await getCompanyPipeline(companyId);
+    const notReady = links.filter(({ asm }) => !isReadyToShip(pipeline, asm));
     if (notReady.length > 0) {
       return {
         error: `Paperwork blocked — not Ready to Ship: ${notReady

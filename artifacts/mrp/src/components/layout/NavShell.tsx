@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Truck,
   BarChart3,
+  FileUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,7 +69,8 @@ export default function NavShell({ children }: NavShellProps) {
     { href: "/purchasing", label: "Purchasing", icon: ShoppingCart },
     { href: "/vendors", label: "Vendors", icon: Truck },
     { href: "/inventory", label: "Inventory", icon: Package },
-    { href: "/reports/materials", label: "Inventory Reports", icon: BarChart3 },
+    { href: "/import", label: "Import", icon: FileUp },
+    { href: "/reports", label: "Reports", icon: BarChart3 },
     { href: "/time", label: "Time", icon: Clock },
     { href: "/employees", label: "Employees", icon: Users },
     { href: "/stage-library", label: "Stage Library", icon: Library },
@@ -81,7 +83,9 @@ export default function NavShell({ children }: NavShellProps) {
         { href: "/admin/labor-rates", label: "Labor Rates", icon: Settings },
         { href: "/admin/material-catalog", label: "Material Catalog", icon: Package },
       ]
-    : [];
+    : user?.roles?.includes("admin")
+      ? [{ href: "/admin/users", label: "Users", icon: UserCog }]
+      : [];
 
   async function handleLogout() {
     await logout();
@@ -222,7 +226,17 @@ export default function NavShell({ children }: NavShellProps) {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto flex flex-col">
+        {user?.authBypass && (
+          <div
+            className="bg-amber-500 text-black text-center text-sm font-semibold py-1.5 px-4 shrink-0 print:hidden"
+            data-testid="auth-bypass-banner"
+          >
+            ⚠️ AUTH BYPASSED — TEST MODE (signed in as {user.email} without login)
+          </div>
+        )}
+        <div className="flex-1 overflow-auto">{children}</div>
+      </main>
     </div>
   );
 }

@@ -5,8 +5,10 @@
  * Steel Fabrication MRP API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StageLibraryInputStageType } from './stageLibraryInputStageType';
 
 export interface StageLibraryInput {
   /** @minLength 1 */
   name: string;
+  stageType?: StageLibraryInputStageType;
 }

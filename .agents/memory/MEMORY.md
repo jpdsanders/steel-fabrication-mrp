@@ -7,4 +7,5 @@
 - [api-server esbuild externals](api-server-bundling.md) — pdfkit must stay external; connect-pg-simple auto-table-create fails under bundling and silently breaks sessions on fresh DBs.
 - [multi-tenant auth setup](multi-tenant-auth.md) — session-based auth on Express; kiosk routes need a separate auth path since they lack browser sessions.
 - [task-env DB drift](task-env-db-drift.md) — task envs' dev DB lags schema and `drizzle-kit push` prompts interactively; run migrate script + idempotent DDL, mirror DDL into post-merge.sh.
+- [financial report semantics](financial-report-semantics.md) — cost variance vs cost budget (no margin); committed PO = approved only; "outstanding" nets out received pieces.
 - [session table on fresh DBs](session-table-bundled-server.md) — bundled server can't auto-create the pg session table; create user_sessions manually + restart, or all logins 401.

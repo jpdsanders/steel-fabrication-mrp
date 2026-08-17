@@ -18,6 +18,8 @@ export interface AuthUser {
   companySlug: string;
   roles: string[];
   companies?: { id: number; name: string; slug: string }[];
+  /** True when the server is running with the dev-only auth bypass active. */
+  authBypass?: boolean;
 }
 
 interface AuthContextValue {

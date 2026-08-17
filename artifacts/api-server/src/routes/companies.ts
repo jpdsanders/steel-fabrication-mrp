@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireSuperAdmin } from "../middlewares/auth";
+import { seedDefaultStageLibrary } from "../services/production";
 import { parseIntParam } from "../lib/params";
 import { z } from "zod/v4";
 
@@ -67,6 +68,7 @@ router.post(
       return;
     }
     const [co] = await db.insert(companiesTable).values(body).returning();
+    await seedDefaultStageLibrary(co.id);
     res.status(201).json(companyView(co));
   },
 );

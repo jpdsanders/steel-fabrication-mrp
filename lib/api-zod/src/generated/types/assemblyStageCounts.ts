@@ -5,20 +5,13 @@
  * Steel Fabrication MRP API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StageCountEntry } from './stageCountEntry';
 
 /**
- * Quantity-weighted counts of assemblies at each production stage. Held assemblies count only under onHold.
+ * Quantity-weighted counts of assemblies per stage of the company's stage-library pipeline (in pipeline order). Held assemblies count only under onHold; assemblies with a null or unknown stage count under noStage (never silently excluded).
  */
 export interface AssemblyStageCounts {
-  sentToVendor: number;
-  atVendor: number;
-  readyForPickup: number;
-  partsProcessing: number;
-  cut: number;
-  fit: number;
-  welded: number;
-  inspected: number;
-  shipped: number;
+  stages: StageCountEntry[];
   onHold: number;
-  notStarted: number;
+  noStage: number;
 }

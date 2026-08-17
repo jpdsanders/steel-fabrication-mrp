@@ -11,6 +11,7 @@ import {
   bomPartsTable,
   processingPathOptionsTable,
   shipmentsTable,
+  stageLibraryTable,
 } from "@workspace/db";
 
 /** Thrown when a BOM replacement would destroy shipping history. */
@@ -23,11 +24,11 @@ class BomLockedByShippingError extends Error {
 }
 import { eq, and, or, ne, isNull, inArray, asc, isNotNull, sql } from "drizzle-orm";
 import {
-  parseKissFile,
   KissParseError,
   type ParsedBom,
   type ParsedBomAssembly,
 } from "../lib/kissParser";
+import { parseBomUpload, bomUploadExtError } from "../lib/bomUpload";
 import { absorbJobBomIntoEstimate } from "./estimateBom";
 import { parseIntParam } from "../lib/params";
 import {
@@ -43,10 +44,10 @@ import {
 } from "./documents";
 import { requireAuth } from "../middlewares/auth";
 import {
-  canonicalAssemblyStage,
-  ASSEMBLY_PROGRESS_ORDER,
-  INSPECTED_STAGE,
-  SHIPPED_STAGE,
+  getCompanyPipeline,
+  canonicalPipelineStage,
+  gateStage,
+  finalStage,
 } from "../services/production";
 
 /** Verify that an assembly belongs (via its job) to the given company. */
@@ -100,11 +101,9 @@ function getOriginalName(file: Express.Multer.File): string {
 }
 
 function rejectNonKiss(res: { status: (code: number) => { json: (body: unknown) => void } }, originalName: string): boolean {
-  const ext = path.extname(originalName).toLowerCase();
-  if (ext !== ".kss") {
-    res.status(400).json({
-      error: `File type "${ext || "unknown"}" is not allowed. Upload a KISS (.kss) file.`,
-    });
+  const extError = bomUploadExtError(originalName);
+  if (extError) {
+    res.status(400).json({ error: extError });
     return true;
   }
   return false;
@@ -215,8 +214,8 @@ function parsedToView(parsed: ParsedBom) {
   return buildView(assemblies, parsed.jobRef, parsed.jobName);
 }
 
-function parseUpload(buffer: Buffer): ParsedBom {
-  return parseKissFile(buffer.toString("utf8"));
+function parseUpload(file: Express.Multer.File): ParsedBom {
+  return parseBomUpload(getOriginalName(file), file.buffer);
 }
 
 export async function loadJobBom(jobId: number): Promise<ViewAssembly[]> {
@@ -432,7 +431,7 @@ router.post(
     }
     if (rejectNonKiss(res, getOriginalName(req.file))) return;
     try {
-      const parsed = parseUpload(req.file.buffer);
+      const parsed = parseUpload(req.file);
       res.json(parsedToView(parsed));
     } catch (err) {
       if (err instanceof KissParseError) {
@@ -491,7 +490,7 @@ router.post(
 
     let parsed: ParsedBom;
     try {
-      parsed = parseUpload(req.file.buffer);
+      parsed = parseUpload(req.file);
     } catch (err) {
       if (err instanceof KissParseError) {
         res.status(400).json({ error: err.message });
@@ -588,19 +587,24 @@ router.patch("/bom/assemblies/:assemblyId", requireAuth, async (req, res): Promi
   if (body.description !== undefined) updates.description = body.description;
   if (body.quantity !== undefined) updates.quantity = body.quantity;
   if (body.processingPath !== undefined) updates.processingPath = body.processingPath;
+  // The company's pipeline (stage_library) — needed for stage validation and
+  // for the shipped-terminal guard below.
+  const pipeline =
+    body.currentStage !== undefined ? await getCompanyPipeline(companyId) : [];
+  const shippedStage = finalStage(pipeline);
   if (body.currentStage !== undefined) {
-    // Enforced stage state machine (Phase 6): only canonical pipeline stages
-    // are accepted, and "Shipped" is reachable only via shipment departure.
-    // A Shipped assembly is terminal: its stage cannot be edited directly.
+    // Enforced stage state machine: only the company's stage-library pipeline
+    // stages are accepted, and the final stage is reachable only via shipment
+    // departure. A shipped assembly is terminal: no direct stage edits.
     const [current] = await db
       .select({ currentStage: bomAssembliesTable.currentStage })
       .from(bomAssembliesTable)
       .where(eq(bomAssembliesTable.id, assemblyId));
-    if (
-      current &&
-      canonicalAssemblyStage(current.currentStage ?? "") === SHIPPED_STAGE &&
-      canonicalAssemblyStage(body.currentStage ?? "") !== SHIPPED_STAGE
-    ) {
+    const isFinal = (stage: string | null | undefined) =>
+      !!shippedStage &&
+      !!stage &&
+      stage.trim().toLowerCase() === shippedStage.name.toLowerCase();
+    if (current && isFinal(current.currentStage) && !isFinal(body.currentStage)) {
       res.status(409).json({
         error:
           "This assembly has shipped; its stage can no longer be edited directly. Shipping records are the source of truth for departed assemblies.",
@@ -610,23 +614,22 @@ router.patch("/bom/assemblies/:assemblyId", requireAuth, async (req, res): Promi
     if (body.currentStage === null || body.currentStage === "") {
       updates.currentStage = null;
     } else {
-      const canonical = canonicalAssemblyStage(body.currentStage);
+      const canonical = canonicalPipelineStage(pipeline, body.currentStage);
       if (!canonical) {
         res.status(400).json({
-          error: `Unknown stage "${body.currentStage}". Valid stages: ${ASSEMBLY_PROGRESS_ORDER.join(", ")}.`,
+          error: `Unknown stage "${body.currentStage}". Valid stages: ${pipeline.map((s) => s.name).join(", ")}.`,
         });
         return;
       }
-      if (canonical === SHIPPED_STAGE) {
+      if (shippedStage && canonical.id === shippedStage.id) {
         res.status(409).json({
-          error:
-            "Assemblies are marked Shipped by departing a shipment (with a signed load confirmation), not by editing the stage directly.",
+          error: `Assemblies are marked ${shippedStage.name} by departing a shipment (with a signed load confirmation), not by editing the stage directly.`,
         });
         return;
       }
-      updates.currentStage = canonical;
-      if (canonical === INSPECTED_STAGE) {
-        // Stamp inspection metadata when the assembly reaches Inspected.
+      updates.currentStage = canonical.name;
+      if (canonical.isReadyToShipGate) {
+        // Stamp inspection metadata when the assembly reaches the RTS gate.
         const [existing] = await db
           .select({ inspectedOn: bomAssembliesTable.inspectedOn })
           .from(bomAssembliesTable)
@@ -648,26 +651,57 @@ router.patch("/bom/assemblies/:assemblyId", requireAuth, async (req, res): Promi
   // can never overwrite "Shipped" set by a concurrent shipment departure
   // (the earlier pre-read check alone would be racy).
   const stageGuard =
-    body.currentStage !== undefined
+    body.currentStage !== undefined && shippedStage
       ? or(
           isNull(bomAssembliesTable.currentStage),
-          ne(bomAssembliesTable.currentStage, SHIPPED_STAGE),
+          ne(bomAssembliesTable.currentStage, shippedStage.name),
         )
       : undefined;
-  const [updated] = await db
-    .update(bomAssembliesTable)
-    .set(updates)
-    .where(and(eq(bomAssembliesTable.id, assemblyId), stageGuard))
-    .returning();
+  // Serialize against concurrent stage-library rename/delete: lock the target
+  // stage row FOR SHARE in the same transaction as the assembly write. A
+  // delete/rename takes FOR UPDATE on the pipeline rows, so it either
+  // committed before we lock (stage gone → 409 here) or waits for us.
+  let updated: typeof bomAssembliesTable.$inferSelect | undefined;
+  await db.transaction(async (tx) => {
+    if (typeof updates.currentStage === "string") {
+      const [stageRow] = await tx
+        .select({ name: stageLibraryTable.name })
+        .from(stageLibraryTable)
+        .where(
+          and(
+            eq(stageLibraryTable.companyId, companyId),
+            sql`lower(${stageLibraryTable.name}) = lower(${updates.currentStage})`,
+          ),
+        )
+        .for("share");
+      if (!stageRow) return; // stage vanished concurrently → handled below
+      updates.currentStage = stageRow.name; // canonical casing
+    }
+    [updated] = await tx
+      .update(bomAssembliesTable)
+      .set(updates)
+      .where(and(eq(bomAssembliesTable.id, assemblyId), stageGuard))
+      .returning();
+  });
   if (!updated) {
     const [still] = await db
       .select({ currentStage: bomAssembliesTable.currentStage })
       .from(bomAssembliesTable)
       .where(eq(bomAssembliesTable.id, assemblyId));
-    if (still && canonicalAssemblyStage(still.currentStage ?? "") === SHIPPED_STAGE) {
+    if (
+      still &&
+      shippedStage &&
+      (still.currentStage ?? "").trim().toLowerCase() === shippedStage.name.toLowerCase()
+    ) {
       res.status(409).json({
         error:
           "This assembly has shipped; its stage can no longer be edited directly. Shipping records are the source of truth for departed assemblies.",
+      });
+      return;
+    }
+    if (still && typeof updates.currentStage === "string") {
+      res.status(409).json({
+        error: "The pipeline changed while saving. Refresh and try again.",
       });
       return;
     }

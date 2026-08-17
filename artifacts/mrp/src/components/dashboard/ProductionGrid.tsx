@@ -4,34 +4,19 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 
 type StageCol = {
-  key:
-    | "sentToVendor"
-    | "atVendor"
-    | "readyForPickup"
-    | "partsProcessing"
-    | "cut"
-    | "fit"
-    | "welded"
-    | "inspected"
-    | "shipped";
+  stageId: number;
   label: string;
+  stageType: string;
+  isGate: boolean;
+  isFinal: boolean;
   className: string;
 };
 
-const VENDOR_COLS: StageCol[] = [
-  { key: "sentToVendor", label: "Sent", className: "bg-amber-50 dark:bg-amber-950/30" },
-  { key: "atVendor", label: "At Vendor", className: "bg-amber-50 dark:bg-amber-950/30" },
-  { key: "readyForPickup", label: "Ready PU", className: "bg-orange-50 dark:bg-orange-950/30" },
-];
-
-const SHOP_COLS: StageCol[] = [
-  { key: "partsProcessing", label: "Parts Proc.", className: "bg-sky-50 dark:bg-sky-950/30" },
-  { key: "cut", label: "Cut", className: "bg-sky-50 dark:bg-sky-950/30" },
-  { key: "fit", label: "Fit", className: "bg-sky-50 dark:bg-sky-950/30" },
-  { key: "welded", label: "Welded", className: "bg-sky-50 dark:bg-sky-950/30" },
-  { key: "inspected", label: "Inspected", className: "bg-emerald-50 dark:bg-emerald-950/30" },
-  { key: "shipped", label: "Shipped", className: "bg-emerald-50 dark:bg-emerald-950/30" },
-];
+function colClass(c: { stageType: string; isGate: boolean; isFinal: boolean }): string {
+  if (c.isGate || c.isFinal) return "bg-emerald-50 dark:bg-emerald-950/30";
+  if (c.stageType === "vendor") return "bg-amber-50 dark:bg-amber-950/30";
+  return "bg-sky-50 dark:bg-sky-950/30";
+}
 
 function daysOut(dueDate: string | null | undefined): number | null {
   if (!dueDate) return null;
@@ -84,24 +69,42 @@ function CountCell({ value, className }: { value: number; className: string }) {
 export default function ProductionGrid({ jobs }: { jobs: DashboardJob[] }) {
   const [, navigate] = useLocation();
 
+  // The pipeline is company-wide: every job's stage counts carry the same
+  // ordered stage list, so derive the columns from the first job that has one.
+  const pipeline = jobs.find((j) => j.assemblyStageCounts?.stages?.length)
+    ?.assemblyStageCounts?.stages;
+  const cols: StageCol[] = (pipeline ?? []).map((s, i, arr) => {
+    const meta = {
+      stageType: s.stageType,
+      isGate: s.isReadyToShipGate,
+      isFinal: i === arr.length - 1,
+    };
+    return {
+      stageId: s.stageId,
+      label: s.name,
+      ...meta,
+      className: colClass(meta),
+    };
+  });
+  const vendorCount = cols.filter((c) => c.stageType === "vendor").length;
+
   return (
     <div className="border rounded-lg bg-card overflow-x-auto">
       <table className="w-full min-w-[1080px] border-collapse" data-testid="production-grid">
         <thead>
           <tr className="text-[11px] uppercase tracking-wide text-muted-foreground">
             <th colSpan={6} className="border-b" />
-            <th
-              colSpan={VENDOR_COLS.length}
-              className="px-2 py-1.5 border-b border-l text-center font-semibold bg-amber-100/60 dark:bg-amber-900/20"
-            >
-              Vendor Processing
-            </th>
-            <th
-              colSpan={SHOP_COLS.length}
-              className="px-2 py-1.5 border-b border-l text-center font-semibold bg-sky-100/60 dark:bg-sky-900/20"
-            >
-              In-Shop Pipeline
-            </th>
+            {cols.length > 0 && (
+              <th
+                colSpan={cols.length}
+                className="px-2 py-1.5 border-b border-l text-center font-semibold bg-sky-100/60 dark:bg-sky-900/20"
+              >
+                Production Pipeline
+                {vendorCount > 0 && (
+                  <span className="ml-1 normal-case font-normal">(amber = vendor)</span>
+                )}
+              </th>
+            )}
             <th colSpan={3} className="border-b border-l" />
           </tr>
           <tr className="text-xs text-muted-foreground">
@@ -110,9 +113,9 @@ export default function ProductionGrid({ jobs }: { jobs: DashboardJob[] }) {
             <th className="px-2 py-2 text-left font-medium">Due Date</th>
             <th className="px-2 py-2 text-center font-medium">Days Out</th>
             <th className="px-2 py-2 text-center font-medium">Total Qty</th>
-            <th className="px-2 py-2 text-center font-medium border-l">Not Started</th>
-            {[...VENDOR_COLS, ...SHOP_COLS].map((c) => (
-              <th key={c.key} className={`px-2 py-2 text-center font-medium border-l ${c.className}`}>
+            <th className="px-2 py-2 text-center font-medium border-l">No Stage</th>
+            {cols.map((c) => (
+              <th key={c.stageId} className={`px-2 py-2 text-center font-medium border-l ${c.className}`}>
                 {c.label}
               </th>
             ))}
@@ -124,6 +127,9 @@ export default function ProductionGrid({ jobs }: { jobs: DashboardJob[] }) {
         <tbody>
           {jobs.map((job) => {
             const counts = job.assemblyStageCounts;
+            const countByStageId = new Map(
+              (counts?.stages ?? []).map((s) => [s.stageId, s.count]),
+            );
             const days = daysOut(job.dueDate);
             const status = statusText(job);
             const pct = pctDone(job);
@@ -156,11 +162,15 @@ export default function ProductionGrid({ jobs }: { jobs: DashboardJob[] }) {
                 <td className="px-2 py-2.5 text-center text-sm font-semibold tabular-nums">
                   {job.assemblyTotalQty ?? 0}
                 </td>
-                <td className={`px-2 py-2.5 text-center text-sm tabular-nums border-l ${(counts?.notStarted ?? 0) === 0 ? "text-muted-foreground/50" : "font-semibold"}`}>
-                  {counts?.notStarted ?? 0}
+                <td className={`px-2 py-2.5 text-center text-sm tabular-nums border-l ${(counts?.noStage ?? 0) === 0 ? "text-muted-foreground/50" : "font-semibold"}`}>
+                  {counts?.noStage ?? 0}
                 </td>
-                {[...VENDOR_COLS, ...SHOP_COLS].map((c) => (
-                  <CountCell key={c.key} value={counts?.[c.key] ?? 0} className={c.className} />
+                {cols.map((c) => (
+                  <CountCell
+                    key={c.stageId}
+                    value={countByStageId.get(c.stageId) ?? 0}
+                    className={c.className}
+                  />
                 ))}
                 <td className={`px-2 py-2.5 text-center text-sm tabular-nums border-l ${(counts?.onHold ?? 0) > 0 ? "font-semibold text-destructive" : "text-muted-foreground/50"}`}>
                   {counts?.onHold ?? 0}

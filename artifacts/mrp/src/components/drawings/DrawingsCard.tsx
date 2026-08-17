@@ -49,19 +49,23 @@ export default function DrawingsCard({ jobId }: { jobId: number }) {
   const drawings = drawingsQuery.data ?? [];
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<DrawingRevisionStatus | "all">("all");
   const [addOpen, setAddOpen] = useState(false);
   const [revisionFor, setRevisionFor] = useState<DrawingListItem | null>(null);
   const [historyFor, setHistoryFor] = useState<DrawingListItem | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return drawings;
-    return drawings.filter(
-      (d) =>
-        d.drawingNumber.toLowerCase().includes(q) ||
-        (d.description ?? "").toLowerCase().includes(q),
-    );
-  }, [drawings, search]);
+    return drawings.filter((d) => {
+      if (q && !d.drawingNumber.toLowerCase().includes(q) && !(d.description ?? "").toLowerCase().includes(q)) {
+        return false;
+      }
+      if (statusFilter !== "all" && d.activeRevision?.status !== statusFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [drawings, search, statusFilter]);
 
   const invalidateLists = () => {
     queryClient.invalidateQueries({ queryKey: listQueryKey });
@@ -88,6 +92,25 @@ export default function DrawingsCard({ jobId }: { jobId: number }) {
                 data-testid="input-search-drawings"
               />
             </div>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as DrawingRevisionStatus | "all")}
+            >
+              <SelectTrigger
+                className="h-8 text-sm w-48"
+                data-testid="select-filter-status"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {REVISION_STATUS_ORDER.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {REVISION_STATUS_LABELS[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
               size="sm"
@@ -162,8 +185,8 @@ export default function DrawingsCard({ jobId }: { jobId: number }) {
             </div>
           ) : (
             <div className="text-sm text-muted-foreground text-center py-4">
-              {search.trim()
-                ? "No drawings match your search."
+              {search.trim() || statusFilter !== "all"
+                ? "No drawings match your filters."
                 : "No drawings yet. Add a shop drawing to begin revision control."}
             </div>
           )}

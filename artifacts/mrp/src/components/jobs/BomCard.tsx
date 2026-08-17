@@ -209,7 +209,7 @@ export default function BomCard({ jobId }: { jobId: number }) {
       setConfirmOpen(true);
     } catch (err) {
       toast({
-        title: "Could not read KISS file",
+        title: "Could not read BOM file",
         description: err instanceof Error ? err.message : undefined,
         variant: "destructive",
       });
@@ -251,12 +251,12 @@ export default function BomCard({ jobId }: { jobId: number }) {
           onClick={() => fileInputRef.current?.click()}
           data-testid="button-bom-import"
         >
-          <Upload className="w-4 h-4" /> {hasBom ? "Re-import" : "Import KISS file"}
+          <Upload className="w-4 h-4" /> {hasBom ? "Re-import" : "Import BOM file"}
         </Button>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".kss"
+          accept=".kss,.xml"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -272,7 +272,7 @@ export default function BomCard({ jobId }: { jobId: number }) {
           <BomSummary bom={bom} />
         ) : (
           <div className="text-sm text-muted-foreground py-6 text-center">
-            No bill of materials imported yet. Import a KISS (.kss) file exported
+            No bill of materials imported yet. Import a KISS (.kss) or Tekla PowerFab XML (.xml) file exported
             from your detailing software to see assemblies, parts, and material totals.
           </div>
         )}

@@ -732,15 +732,84 @@ export interface ReorderStagesBody {
   stageIds: number[];
 }
 
+export type StageLibraryItemStageType = typeof StageLibraryItemStageType[keyof typeof StageLibraryItemStageType];
+
+
+export const StageLibraryItemStageType = {
+  in_house: 'in_house',
+  vendor: 'vendor',
+} as const;
+
 export interface StageLibraryItem {
   id: number;
   name: string;
+  orderIndex: number;
+  stageType: StageLibraryItemStageType;
+  isReadyToShipGate: boolean;
   createdAt: string;
 }
+
+export type StageLibraryInputStageType = typeof StageLibraryInputStageType[keyof typeof StageLibraryInputStageType];
+
+
+export const StageLibraryInputStageType = {
+  in_house: 'in_house',
+  vendor: 'vendor',
+} as const;
 
 export interface StageLibraryInput {
   /** @minLength 1 */
   name: string;
+  stageType?: StageLibraryInputStageType;
+}
+
+export type StageLibraryUpdateStageType = typeof StageLibraryUpdateStageType[keyof typeof StageLibraryUpdateStageType];
+
+
+export const StageLibraryUpdateStageType = {
+  in_house: 'in_house',
+  vendor: 'vendor',
+} as const;
+
+export interface StageLibraryUpdate {
+  /** @minLength 1 */
+  name?: string;
+  stageType?: StageLibraryUpdateStageType;
+  isReadyToShipGate?: boolean;
+}
+
+export interface StageLibraryReorder {
+  /** @minItems 1 */
+  itemIds: number[];
+}
+
+export type StageCountEntryStageType = typeof StageCountEntryStageType[keyof typeof StageCountEntryStageType];
+
+
+export const StageCountEntryStageType = {
+  in_house: 'in_house',
+  vendor: 'vendor',
+} as const;
+
+/**
+ * Quantity-weighted count of assemblies sitting at one pipeline stage.
+ */
+export interface StageCountEntry {
+  stageId: number;
+  name: string;
+  stageType: StageCountEntryStageType;
+  isReadyToShipGate: boolean;
+  count: number;
+}
+
+/**
+ * Live counts of assemblies per pipeline stage across the company's active jobs, plus held assemblies and assemblies with no stage set.
+ */
+export interface StageLibraryRollup {
+  stages: StageCountEntry[];
+  onHold: number;
+  noStage: number;
+  totalQty: number;
 }
 
 export interface ProcessingPathOption {
@@ -948,20 +1017,12 @@ export const DashboardJobStatus = {
 } as const;
 
 /**
- * Quantity-weighted counts of assemblies at each production stage. Held assemblies count only under onHold.
+ * Quantity-weighted counts of assemblies per stage of the company's stage-library pipeline (in pipeline order). Held assemblies count only under onHold; assemblies with a null or unknown stage count under noStage (never silently excluded).
  */
 export interface AssemblyStageCounts {
-  sentToVendor: number;
-  atVendor: number;
-  readyForPickup: number;
-  partsProcessing: number;
-  cut: number;
-  fit: number;
-  welded: number;
-  inspected: number;
-  shipped: number;
+  stages: StageCountEntry[];
   onHold: number;
-  notStarted: number;
+  noStage: number;
 }
 
 export interface DashboardJob {
@@ -2151,6 +2212,326 @@ export interface InventoryTrendPoint {
   availablePieces: number;
 }
 
+export interface LaborDetailEntry {
+  id: number;
+  date: string;
+  employeeId: number;
+  employeeName: string;
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  /** @nullable */
+  stageName?: string | null;
+  clockIn: string;
+  clockOut: string;
+  hours: number;
+}
+
+export type LaborDetailReportEmployeeTotalsItem = {
+  employeeId: number;
+  employeeName: string;
+  hours: number;
+};
+
+export type LaborDetailReportJobTotalsItem = {
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  hours: number;
+};
+
+export interface LaborDetailReport {
+  entries: LaborDetailEntry[];
+  employeeTotals: LaborDetailReportEmployeeTotalsItem[];
+  jobTotals: LaborDetailReportJobTotalsItem[];
+  totalHours: number;
+}
+
+export type OutstandingPoRowDueStatus = typeof OutstandingPoRowDueStatus[keyof typeof OutstandingPoRowDueStatus];
+
+
+export const OutstandingPoRowDueStatus = {
+  overdue: 'overdue',
+  due_soon: 'due_soon',
+  ok: 'ok',
+  no_date: 'no_date',
+} as const;
+
+export interface OutstandingPoRow {
+  id: number;
+  poNumber: string;
+  status: string;
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  /** @nullable */
+  vendorName?: string | null;
+  lineCount: number;
+  value: number;
+  /** @nullable */
+  earliestPromiseDate?: string | null;
+  dueStatus: OutstandingPoRowDueStatus;
+}
+
+export interface OutstandingPosReport {
+  pos: OutstandingPoRow[];
+  totalValue: number;
+  overdueCount: number;
+}
+
+export interface EstimateVsActualRow {
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  jobStatus: string;
+  bidNumber: string;
+  estimatedHours: number;
+  actualHours: number;
+  hoursVariance: number;
+  estimatedLaborCost?: number;
+  estimatedMaterialCost?: number;
+  estimatedTotalCost: number;
+  /** @nullable */
+  estimateAmount?: number | null;
+  actualCost: number;
+  costVariance: number;
+  /** @nullable */
+  contractVariance?: number | null;
+  actualLaborCost: number;
+  materialCost: number;
+}
+
+export interface JobMarginRow {
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  jobStatus: string;
+  customer: string;
+  contractValue: number;
+  actualLaborCost: number;
+  materialCost: number;
+  actualCost: number;
+  margin: number;
+  /** @nullable */
+  marginPercent?: number | null;
+  /** @nullable */
+  estimatedMarginPercent?: number | null;
+}
+
+export interface BidWinLossMonth {
+  month: string;
+  wonCount: number;
+  wonAmount: number;
+  lostCount: number;
+  lostAmount: number;
+  openCount: number;
+  openAmount: number;
+}
+
+export type BidWinLossReportTotals = {
+  wonCount: number;
+  wonAmount: number;
+  lostCount: number;
+  lostAmount: number;
+  openCount: number;
+  openAmount: number;
+  /** @nullable */
+  winRatePercent?: number | null;
+};
+
+export interface BidWinLossReport {
+  months: BidWinLossMonth[];
+  totals: BidWinLossReportTotals;
+}
+
+export interface BacklogJobRow {
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  customer: string;
+  status: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  bidNumber?: string | null;
+  /** @nullable */
+  contractValue?: number | null;
+  hasDepartedShipments: boolean;
+}
+
+export interface BacklogReport {
+  jobs: BacklogJobRow[];
+  totalContractValue: number;
+  jobCount: number;
+  unvaluedJobCount: number;
+}
+
+export type EstimateRecapReportMaterialCategoriesItem = {
+  category: string;
+  partCount: number;
+  pieceCount: number;
+  cost: number;
+};
+
+export type EstimateRecapReportLaborLinesItem = {
+  trade: string;
+  hours: number;
+  hourlyRate: number;
+  cost: number;
+};
+
+export interface EstimateRecapReport {
+  estimateId: number;
+  bidNumber: string;
+  name: string;
+  customer: string;
+  status: string;
+  materialCategories: EstimateRecapReportMaterialCategoriesItem[];
+  materialTotal: number;
+  laborLines: EstimateRecapReportLaborLinesItem[];
+  laborTotal: number;
+  subtotal: number;
+  marginPercent: number;
+  marginAmount: number;
+  total: number;
+  /** @nullable */
+  quotedAmount?: number | null;
+}
+
+export interface JobCostingRow {
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  customer: string;
+  status: string;
+  /** @nullable */
+  contractValue?: number | null;
+  laborHours: number;
+  laborCost: number;
+  materialConsumedCost: number;
+  poValue: number;
+  totalCost: number;
+  /** @nullable */
+  wip?: number | null;
+}
+
+export type JobCostingReportTotals = {
+  laborCost: number;
+  materialConsumedCost: number;
+  poValue: number;
+  totalCost: number;
+};
+
+export interface JobCostingReport {
+  jobs: JobCostingRow[];
+  totals: JobCostingReportTotals;
+}
+
+export interface MaterialYieldRow {
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  profileType: string;
+  profileSize: string;
+  grade: string;
+  barCount: number;
+  stockLengthIn: number;
+  usedLengthIn: number;
+  wasteIn: number;
+  scrapPercent: number;
+  yieldPercent: number;
+}
+
+export type MaterialYieldReportTotals = {
+  stockLengthIn: number;
+  wasteIn: number;
+  scrapPercent: number;
+  yieldPercent: number;
+};
+
+export interface MaterialYieldReport {
+  rows: MaterialYieldRow[];
+  totals: MaterialYieldReportTotals;
+}
+
+export type CutListPlanBarsItemCutsItem = {
+  /** @nullable */
+  label?: string | null;
+  lengthIn: number;
+  quantity: number;
+};
+
+export type CutListPlanBarsItem = {
+  barNumber: number;
+  profileType: string;
+  profileSize: string;
+  grade: string;
+  source: string;
+  /** @nullable */
+  vendorName?: string | null;
+  stockLengthIn: number;
+  wasteIn: number;
+  cuts: CutListPlanBarsItemCutsItem[];
+};
+
+export interface CutListPlan {
+  planId: number;
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  /** @nullable */
+  acceptedAt?: string | null;
+  bars: CutListPlanBarsItem[];
+}
+
+export interface RfiTurnaroundRow {
+  id: number;
+  number: string;
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  question: string;
+  /** @nullable */
+  directedTo?: string | null;
+  status: string;
+  createdDate: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  responseDate?: string | null;
+  /** @nullable */
+  turnaroundDays?: number | null;
+  /** @nullable */
+  daysOpen?: number | null;
+  overdue: boolean;
+}
+
+export type RfiTurnaroundReportSummary = {
+  openCount: number;
+  overdueCount: number;
+  answeredCount: number;
+  /** @nullable */
+  avgTurnaroundDays?: number | null;
+};
+
+export interface RfiTurnaroundReport {
+  rfis: RfiTurnaroundRow[];
+  summary: RfiTurnaroundReportSummary;
+}
+
+export interface VendorPerformanceRow {
+  vendorId: number;
+  vendorName: string;
+  vendorStatus: string;
+  poCount: number;
+  totalSpend: number;
+  receivedPoCount: number;
+  /** @nullable */
+  onTimePercent?: number | null;
+  /** @nullable */
+  avgDaysLate?: number | null;
+}
+
 export type EstimateBomPartPricingStatus = typeof EstimateBomPartPricingStatus[keyof typeof EstimateBomPartPricingStatus];
 
 
@@ -2790,6 +3171,23 @@ export type GetInventoryTrendReportParams = {
 months?: number;
 };
 
+export type GetLaborDetailReportParams = {
+/**
+ * Start date (inclusive), YYYY-MM-DD
+ */
+from?: string;
+/**
+ * End date (inclusive), YYYY-MM-DD
+ */
+to?: string;
+jobId?: number;
+employeeId?: number;
+};
+
+export type GetCutListsReportParams = {
+jobId?: number;
+};
+
 export type ListNcrsParams = {
 jobId?: number;
 status?: ListNcrsStatus;
@@ -2816,3 +3214,4 @@ export const ListSubstitutionRequestsStatus = {
   approved: 'approved',
   rejected: 'rejected',
 } as const;
+

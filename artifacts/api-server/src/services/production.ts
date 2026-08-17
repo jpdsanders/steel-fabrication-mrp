@@ -9,6 +9,7 @@ import {
   purchaseOrdersTable,
   bomAssembliesTable,
   bomPartsTable,
+  stageLibraryTable,
 } from "@workspace/db";
 import { eq, and, inArray, asc } from "drizzle-orm";
 
@@ -378,131 +379,184 @@ function computeAssemblyRollup(
   return { assemblyCount: assemblies.length, assemblyProgressPct, assemblyStatus };
 }
 
-const STAGE_COUNT_KEYS: Record<string, keyof AssemblyStageCounts> = {
-  "Sent to Vendor": "sentToVendor",
-  "At Vendor": "atVendor",
-  "Ready for Pickup": "readyForPickup",
-  "Parts Processing": "partsProcessing",
-  Cut: "cut",
-  Fit: "fit",
-  Welded: "welded",
-  Inspected: "inspected",
-  Shipped: "shipped",
-};
+// ---------------------------------------------------------------------------
+// Assembly stage state machine — driven by the per-company `stage_library`
+// pipeline (single source of truth). `bom_assemblies.currentStage` values are
+// validated against the company's library rows. The stage flagged
+// `isReadyToShipGate` defines Ready to Ship (gate stage AND not on hold), and
+// the final stage in the pipeline is reachable only through shipment
+// departure.
+// ---------------------------------------------------------------------------
+
+export interface PipelineStage {
+  id: number;
+  name: string;
+  orderIndex: number;
+  stageType: string;
+  isReadyToShipGate: boolean;
+}
+
+/** Canonical default pipeline seeded for new companies. */
+export const DEFAULT_PIPELINE: Array<{
+  name: string;
+  stageType: "in_house" | "vendor";
+  isReadyToShipGate: boolean;
+}> = [
+  { name: "Parts Processing", stageType: "in_house", isReadyToShipGate: false },
+  { name: "Sent to Vendor", stageType: "vendor", isReadyToShipGate: false },
+  { name: "At Vendor", stageType: "vendor", isReadyToShipGate: false },
+  { name: "Ready for Pickup", stageType: "vendor", isReadyToShipGate: false },
+  { name: "Cut", stageType: "in_house", isReadyToShipGate: false },
+  { name: "Fit", stageType: "in_house", isReadyToShipGate: false },
+  { name: "Welded", stageType: "in_house", isReadyToShipGate: false },
+  { name: "Inspected", stageType: "in_house", isReadyToShipGate: true },
+  { name: "Shipped", stageType: "in_house", isReadyToShipGate: false },
+];
+
+/** Seed a company's stage library with the default pipeline (no-op if any rows exist). */
+export async function seedDefaultStageLibrary(companyId: number): Promise<void> {
+  const existing = await db
+    .select({ id: stageLibraryTable.id })
+    .from(stageLibraryTable)
+    .where(eq(stageLibraryTable.companyId, companyId))
+    .limit(1);
+  if (existing.length > 0) return;
+  await db.insert(stageLibraryTable).values(
+    DEFAULT_PIPELINE.map((s, i) => ({
+      companyId,
+      name: s.name,
+      orderIndex: i,
+      stageType: s.stageType,
+      isReadyToShipGate: s.isReadyToShipGate,
+    })),
+  );
+}
+
+/** The company's ordered production pipeline from stage_library. */
+export async function getCompanyPipeline(
+  companyId: number,
+): Promise<PipelineStage[]> {
+  const rows = await db
+    .select()
+    .from(stageLibraryTable)
+    .where(eq(stageLibraryTable.companyId, companyId))
+    .orderBy(asc(stageLibraryTable.orderIndex), asc(stageLibraryTable.id));
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    orderIndex: r.orderIndex,
+    stageType: r.stageType,
+    isReadyToShipGate: r.isReadyToShipGate,
+  }));
+}
+
+function pipelineIndex(
+  pipeline: PipelineStage[],
+  stage: string | null | undefined,
+): number {
+  if (!stage) return -1;
+  const needle = stage.trim().toLowerCase();
+  return pipeline.findIndex((s) => s.name.toLowerCase() === needle);
+}
+
+/** Resolve a caller-supplied stage to the company's pipeline row, or null. */
+export function canonicalPipelineStage(
+  pipeline: PipelineStage[],
+  stage: string,
+): PipelineStage | null {
+  const idx = pipelineIndex(pipeline, stage);
+  return idx >= 0 ? pipeline[idx] : null;
+}
+
+/** The company's Ready-to-Ship gate stage (flagged in the library), if any. */
+export function gateStage(pipeline: PipelineStage[]): PipelineStage | null {
+  return pipeline.find((s) => s.isReadyToShipGate) ?? null;
+}
+
+/** The final stage of the pipeline — reachable only via shipment departure. */
+export function finalStage(pipeline: PipelineStage[]): PipelineStage | null {
+  return pipeline.length > 0 ? pipeline[pipeline.length - 1] : null;
+}
+
+/** Ready to Ship: at the company's gate stage and not on hold. */
+export function isReadyToShip(
+  pipeline: PipelineStage[],
+  asm: Pick<AssemblyRow, "currentStage" | "onHold">,
+): boolean {
+  const gate = gateStage(pipeline);
+  if (!gate || asm.onHold || !asm.currentStage) return false;
+  return asm.currentStage.trim().toLowerCase() === gate.name.toLowerCase();
+}
+
+export interface StageCountEntry {
+  stageId: number;
+  name: string;
+  stageType: string;
+  isReadyToShipGate: boolean;
+  count: number;
+}
 
 export interface AssemblyStageCounts {
-  sentToVendor: number;
-  atVendor: number;
-  readyForPickup: number;
-  partsProcessing: number;
-  cut: number;
-  fit: number;
-  welded: number;
-  inspected: number;
-  shipped: number;
+  stages: StageCountEntry[];
   onHold: number;
-  notStarted: number;
+  noStage: number;
 }
 
 /**
- * Quantity-weighted counts of assemblies per production stage.
- * Held assemblies count only under onHold; assemblies with no/unknown
- * current stage count under notStarted.
+ * Quantity-weighted counts of assemblies per pipeline stage.
+ * Held assemblies count only under onHold; assemblies with a null or
+ * unknown current stage count under noStage (never silently dropped).
  */
-function computeAssemblyStageCounts(assemblies: AssemblyRow[]): {
+export function computeAssemblyStageCounts(
+  pipeline: PipelineStage[],
+  assemblies: AssemblyRow[],
+): {
   counts: AssemblyStageCounts;
   totalQty: number;
 } {
-  const counts: AssemblyStageCounts = {
-    sentToVendor: 0,
-    atVendor: 0,
-    readyForPickup: 0,
-    partsProcessing: 0,
-    cut: 0,
-    fit: 0,
-    welded: 0,
-    inspected: 0,
-    shipped: 0,
-    onHold: 0,
-    notStarted: 0,
-  };
+  const perStage = pipeline.map(() => 0);
+  let onHold = 0;
+  let noStage = 0;
   let totalQty = 0;
   for (const asm of assemblies) {
     const qty = asm.quantity > 0 ? asm.quantity : 1;
     totalQty += qty;
     if (asm.onHold) {
-      counts.onHold += qty;
+      onHold += qty;
       continue;
     }
-    const key = asm.currentStage
-      ? STAGE_COUNT_KEYS[asm.currentStage]
-      : undefined;
-    if (key) counts[key] += qty;
-    else counts.notStarted += qty;
+    const idx = pipelineIndex(pipeline, asm.currentStage);
+    if (idx >= 0) perStage[idx] += qty;
+    else noStage += qty;
   }
-  return { counts, totalQty };
-}
-
-/**
- * Canonical production sequence used to rank assembly progress. This
- * intentionally differs from the grid's visual column grouping (vendor
- * columns first): parts are processed in-shop first, then go out to the
- * vendor, then return for cut/fit/weld/inspect/ship.
- */
-export const ASSEMBLY_PROGRESS_ORDER = [
-  "Parts Processing",
-  "Sent to Vendor",
-  "At Vendor",
-  "Ready for Pickup",
-  "Cut",
-  "Fit",
-  "Welded",
-  "Inspected",
-  "Shipped",
-];
-
-const PROGRESS_INDEX = new Map(
-  ASSEMBLY_PROGRESS_ORDER.map((name, i) => [name.toLowerCase(), i]),
-);
-const INSPECTED_INDEX = ASSEMBLY_PROGRESS_ORDER.indexOf("Inspected");
-const SHIPPED_INDEX = ASSEMBLY_PROGRESS_ORDER.indexOf("Shipped");
-
-// ---------------------------------------------------------------------------
-// Assembly stage state machine (Phase 6). `bom_assemblies.currentStage` is the
-// single assembly-level status system — values are constrained to the
-// canonical pipeline, "Shipped" is only reachable through shipment departure,
-// and Ready to Ship is defined as: currentStage = Inspected AND not on hold.
-// ---------------------------------------------------------------------------
-
-export const INSPECTED_STAGE = "Inspected";
-export const SHIPPED_STAGE = "Shipped";
-
-/** Resolve a caller-supplied stage to its canonical name, or null if unknown. */
-export function canonicalAssemblyStage(stage: string): string | null {
-  const idx = PROGRESS_INDEX.get(stage.trim().toLowerCase());
-  return idx === undefined ? null : ASSEMBLY_PROGRESS_ORDER[idx];
-}
-
-/** Ready to Ship: Inspected and not on hold. The shipping gate. */
-export function isReadyToShip(
-  asm: Pick<AssemblyRow, "currentStage" | "onHold">,
-): boolean {
-  return (
-    !asm.onHold &&
-    asm.currentStage !== null &&
-    canonicalAssemblyStage(asm.currentStage) === INSPECTED_STAGE
-  );
+  return {
+    counts: {
+      stages: pipeline.map((s, i) => ({
+        stageId: s.id,
+        name: s.name,
+        stageType: s.stageType,
+        isReadyToShipGate: s.isReadyToShipGate,
+        count: perStage[i],
+      })),
+      onHold,
+      noStage,
+    },
+    totalQty,
+  };
 }
 
 
 /**
- * Quantity-weighted % done and derived status across the canonical assembly
+ * Quantity-weighted % done and derived status across the company's assembly
  * pipeline. Assemblies whose currentStage is unset or unknown contribute 0%
  * progress; on-hold assemblies still contribute their stage progress.
  */
 export function computeGridProgress(
+  pipeline: PipelineStage[],
   assemblies: Pick<AssemblyRow, "quantity" | "currentStage">[],
 ): { assemblyGridStatus: string; assemblyGridProgressPct: number } {
+  const lastIdx = pipeline.length - 1;
+  const gateIdx = pipeline.findIndex((s) => s.isReadyToShipGate);
   let totalQty = 0;
   let matchedQty = 0;
   let progressSum = 0;
@@ -511,12 +565,10 @@ export function computeGridProgress(
   for (const asm of assemblies) {
     const qty = asm.quantity > 0 ? asm.quantity : 1;
     totalQty += qty;
-    const idx = asm.currentStage
-      ? (PROGRESS_INDEX.get(asm.currentStage.trim().toLowerCase()) ?? -1)
-      : -1;
+    const idx = pipelineIndex(pipeline, asm.currentStage);
     if (idx >= 0) {
       matchedQty += qty;
-      progressSum += (idx / SHIPPED_INDEX) * qty;
+      progressSum += (lastIdx > 0 ? idx / lastIdx : 1) * qty;
       minIdx = Math.min(minIdx, idx);
     } else {
       minIdx = -1;
@@ -524,11 +576,11 @@ export function computeGridProgress(
   }
 
   let status: string;
-  if (totalQty === 0 || matchedQty === 0) {
+  if (totalQty === 0 || matchedQty === 0 || lastIdx < 0) {
     status = "Not Started";
-  } else if (matchedQty === totalQty && minIdx >= SHIPPED_INDEX) {
+  } else if (matchedQty === totalQty && minIdx >= lastIdx) {
     status = "Complete";
-  } else if (matchedQty === totalQty && minIdx >= INSPECTED_INDEX) {
+  } else if (matchedQty === totalQty && gateIdx >= 0 && minIdx >= gateIdx) {
     status = "Ready to Ship";
   } else {
     status = "In Progress";
@@ -733,6 +785,7 @@ export async function getDashboardSummary(companyId: number) {
 }
 
 export async function getDashboardJobs(companyId: number) {
+  const pipeline = await getCompanyPipeline(companyId);
   const jobs = await db.select().from(jobsTable).where(eq(jobsTable.companyId, companyId));
   const { stagesByJob, stageActual } = await loadJobBundles(jobs);
   const activeCounts = await activeCountByJob(jobs.map((j) => j.id));
@@ -746,8 +799,8 @@ export async function getDashboardJobs(companyId: number) {
     const jobAssemblies = allAssemblies.get(job.id) ?? [];
     const stageNames = agg.ordered.map((s) => s.name);
     const rollup = computeAssemblyRollup(jobAssemblies, stageNames);
-    const stageCounts = computeAssemblyStageCounts(jobAssemblies);
-    const gridProgress = computeGridProgress(jobAssemblies);
+    const stageCounts = computeAssemblyStageCounts(pipeline, jobAssemblies);
+    const gridProgress = computeGridProgress(pipeline, jobAssemblies);
     return {
       id: job.id,
       jobNumber: job.jobNumber,

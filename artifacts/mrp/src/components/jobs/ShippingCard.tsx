@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListJobShipments,
+  useListStageLibrary,
   getListJobShipmentsQueryKey,
   useCreateShipment,
   useDeleteShipment,
@@ -109,9 +110,16 @@ export default function ShippingCard({
   const shippedAssemblyIds = new Set(
     (shipments ?? []).flatMap((s) => s.assemblies.map((a) => a.assemblyId)),
   );
+  // The Ready-to-Ship gate stage comes from the company's Stage Library.
+  const { data: stageLibrary } = useListStageLibrary();
+  const gate = (stageLibrary ?? []).find((s) => s.isReadyToShipGate) ?? null;
+  const gateName = gate?.name ?? "the gate stage";
   const rtsAssemblies = assemblies.filter(
     (a) =>
-      a.currentStage === "Inspected" && !a.onHold && !shippedAssemblyIds.has(a.id),
+      gate != null &&
+      (a.currentStage ?? "").toLowerCase() === gate.name.toLowerCase() &&
+      !a.onHold &&
+      !shippedAssemblyIds.has(a.id),
   );
 
   return (
@@ -131,7 +139,7 @@ export default function ShippingCard({
               <DialogTitle>New Shipment</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground -mt-2">
-              Only Ready-to-Ship assemblies (Inspected and not on hold) can be
+              Only Ready-to-Ship assemblies ({gateName} and not on hold) can be
               added to a shipment.
             </p>
             {rtsAssemblies.length === 0 ? (
@@ -190,8 +198,8 @@ export default function ShippingCard({
       <CardContent className="space-y-4">
         {(shipments ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground" data-testid="text-no-shipments">
-            No shipments yet. Assemblies become eligible once they are Inspected
-            and not on hold.
+            No shipments yet. Assemblies become eligible once they reach{" "}
+            {gateName} and are not on hold.
           </p>
         ) : (
           (shipments ?? []).map((s) => (
@@ -277,7 +285,7 @@ function ShipmentRow({
                 <AlertDialogTitle>Delete shipment {s.shipperNumber}?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This removes the shipment, its notification, and any load
-                  confirmation. Assemblies stay Inspected.
+                  confirmation. Assemblies keep their current stage.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

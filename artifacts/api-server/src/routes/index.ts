@@ -30,6 +30,7 @@ import inventoryRouter from "./inventory";
 import nestingRouter from "./nesting";
 import qcRouter from "./qc";
 import shippingRouter from "./shipping";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -92,5 +93,6 @@ router.use(quoteRouter);
 router.use(nestingRouter);
 router.use(qcRouter);
 router.use(shippingRouter);
+router.use(reportsRouter);
 
 export default router;

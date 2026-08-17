@@ -870,10 +870,54 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   /stage-library/{itemId}:
+    patch:
+      operationId: updateStageLibraryItem
+      tags: [stage-library]
+      summary: Update a pipeline stage
+      description: >
+        Rename a stage (assemblies currently in the stage are renamed with it),
+        change its type, or mark it as the Ready-to-Ship gate (unsets the
+        previous gate stage).
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StageLibraryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StageLibraryItem"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict (duplicate name or gate constraint)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     delete:
       operationId: deleteStageLibraryItem
       tags: [stage-library]
-      summary: Remove a stage template from the library
+      summary: Remove a stage from the pipeline
+      description: >
+        Blocked while any assembly in the company currently sits in this stage,
+        or if it is the Ready-to-Ship gate stage.
       parameters:
         - $ref: "#/components/parameters/ItemId"
       responses:
@@ -885,6 +929,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "409":
+          description: Stage in use or gate stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /stage-library/reorder:
+    post:
+      operationId: reorderStageLibrary
+      tags: [stage-library]
+      summary: Reorder the pipeline
+      description: Accepts the full ordered list of the company's stage ids.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StageLibraryReorder"
+      responses:
+        "200":
+          description: New pipeline order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StageLibraryItem"
+        "400":
+          description: Invalid order (must contain each stage id exactly once)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /stage-library/rollup:
+    get:
+      operationId: getStageLibraryRollup
+      tags: [stage-library]
+      summary: Live assembly counts per pipeline stage
+      description: >
+        Quantity-weighted counts of assemblies per pipeline stage across the
+        company's active jobs, plus on-hold assemblies and assemblies with no
+        stage set.
+      responses:
+        "200":
+          description: Rollup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StageLibraryRollup"
 
   /processing-path-options:
     get:
@@ -3435,6 +3530,206 @@ paths:
                 items:
                   $ref: "#/components/schemas/InventoryTrendPoint"
 
+  /reports/labor-detail:
+    get:
+      operationId: getLaborDetailReport
+      tags: [reports]
+      summary: Labor detail — hours per employee, job, stage, date range
+      parameters:
+        - name: from
+          in: query
+          description: Start date (inclusive), YYYY-MM-DD
+          schema:
+            type: string
+        - name: to
+          in: query
+          description: End date (inclusive), YYYY-MM-DD
+          schema:
+            type: string
+        - name: jobId
+          in: query
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Completed time entries with employee/job totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LaborDetailReport"
+
+  /reports/outstanding-pos:
+    get:
+      operationId: getOutstandingPosReport
+      tags: [reports]
+      summary: Outstanding PO report — open POs with due-in status
+      responses:
+        "200":
+          description: Open POs, overdue first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutstandingPosReport"
+
+  /reports/estimate-vs-actual:
+    get:
+      operationId: getEstimateVsActualReport
+      tags: [reports]
+      summary: Estimate vs actual — hours and cost variance per converted job
+      responses:
+        "200":
+          description: One row per job linked to an estimate
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EstimateVsActualRow"
+
+  /reports/job-margin:
+    get:
+      operationId: getJobMarginReport
+      tags: [reports]
+      summary: Job margin — contract value vs actual cost per job
+      responses:
+        "200":
+          description: One row per job with a contract value
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobMarginRow"
+
+  /reports/bid-win-loss:
+    get:
+      operationId: getBidWinLossReport
+      tags: [reports]
+      summary: Bid win/loss — win rate and dollar value by month
+      responses:
+        "200":
+          description: Monthly win/loss breakdown plus totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BidWinLossReport"
+
+  /reports/backlog:
+    get:
+      operationId: getBacklogReport
+      tags: [reports]
+      summary: Backlog — contracted value of active, unshipped jobs
+      responses:
+        "200":
+          description: Active jobs with contract values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BacklogReport"
+
+  /reports/estimate-recap/{estimateId}:
+    get:
+      operationId: getEstimateRecapReport
+      tags: [reports]
+      summary: Estimate recap — price by category with labor and margin
+      parameters:
+        - name: estimateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Category/labor/margin recap for the estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateRecapReport"
+        "404":
+          description: Estimate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /reports/job-costing:
+    get:
+      operationId: getJobCostingReport
+      tags: [reports]
+      summary: Job costing / WIP — labor, material, and PO cost per job
+      responses:
+        "200":
+          description: Cost rollup per job with totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobCostingReport"
+
+  /reports/material-yield:
+    get:
+      operationId: getMaterialYieldReport
+      tags: [reports]
+      summary: Material yield/scrap — waste percentage from accepted nesting plans
+      responses:
+        "200":
+          description: Yield rows by job and shape, plus totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaterialYieldReport"
+
+  /reports/cut-lists:
+    get:
+      operationId: getCutListsReport
+      tags: [reports]
+      summary: Cut lists from accepted nesting plans
+      parameters:
+        - name: jobId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Accepted plans with bars and cuts, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CutListPlan"
+
+  /reports/rfi-turnaround:
+    get:
+      operationId: getRfiTurnaroundReport
+      tags: [reports]
+      summary: RFI turnaround — open/overdue RFIs and response times
+      responses:
+        "200":
+          description: RFIs with turnaround stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RfiTurnaroundReport"
+
+  /reports/vendor-performance:
+    get:
+      operationId: getVendorPerformanceReport
+      tags: [reports]
+      summary: Vendor performance — on-time delivery rate and spend by vendor
+      responses:
+        "200":
+          description: One row per vendor
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorPerformanceRow"
+
   /ncrs:
     get:
       operationId: listNcrs
@@ -3648,8 +3943,9 @@ paths:
       tags: [shipping]
       summary: Create a shipment from Ready-to-Ship assemblies
       description: >
-        Every assembly must be Ready to Ship (current stage Inspected and not
-        on hold) and not already on another open shipment. Shipper number is
+        Every assembly must be Ready to Ship (at the company's Ready-to-Ship
+        gate stage from the Stage Library and not on hold) and not already on
+        another open shipment. Shipper number is
         assigned as [job#]-S[NN].
       parameters:
         - $ref: "#/components/parameters/JobId"
@@ -3816,7 +4112,7 @@ paths:
       summary: Mark a shipment departed
       description: >
         Hard gate — requires a signed load confirmation. Moves every assembly
-        on the shipment to the Shipped stage.
+        on the shipment to the final (shipped) stage of the company's pipeline.
       parameters:
         - $ref: "#/components/parameters/ShipmentId"
       responses:
@@ -4759,12 +5055,19 @@ components:
 
     StageLibraryItem:
       type: object
-      required: [id, name, createdAt]
+      required: [id, name, orderIndex, stageType, isReadyToShipGate, createdAt]
       properties:
         id:
           type: integer
         name:
           type: string
+        orderIndex:
+          type: integer
+        stageType:
+          type: string
+          enum: [in_house, vendor]
+        isReadyToShipGate:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -4776,6 +5079,49 @@ components:
         name:
           type: string
           minLength: 1
+        stageType:
+          type: string
+          enum: [in_house, vendor]
+
+    StageLibraryUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        stageType:
+          type: string
+          enum: [in_house, vendor]
+        isReadyToShipGate:
+          type: boolean
+
+    StageLibraryReorder:
+      type: object
+      required: [itemIds]
+      properties:
+        itemIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+
+    StageLibraryRollup:
+      type: object
+      description: >
+        Live counts of assemblies per pipeline stage across the company's
+        active jobs, plus held assemblies and assemblies with no stage set.
+      required: [stages, onHold, noStage, totalQty]
+      properties:
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/StageCountEntry"
+        onHold:
+          type: integer
+        noStage:
+          type: integer
+        totalQty:
+          type: integer
 
     ProcessingPathOption:
       type: object
@@ -5230,45 +5576,39 @@ components:
           type: number
           description: Quantity-weighted percent done across the canonical assembly pipeline (Parts Processing first, then vendor stages, then cut/fit/weld/inspect/ship)
 
+    StageCountEntry:
+      type: object
+      description: Quantity-weighted count of assemblies sitting at one pipeline stage.
+      required: [stageId, name, stageType, isReadyToShipGate, count]
+      properties:
+        stageId:
+          type: integer
+        name:
+          type: string
+        stageType:
+          type: string
+          enum: [in_house, vendor]
+        isReadyToShipGate:
+          type: boolean
+        count:
+          type: integer
+
     AssemblyStageCounts:
       type: object
-      description: Quantity-weighted counts of assemblies at each production stage. Held assemblies count only under onHold.
-      required:
-        [
-          sentToVendor,
-          atVendor,
-          readyForPickup,
-          partsProcessing,
-          cut,
-          fit,
-          welded,
-          inspected,
-          shipped,
-          onHold,
-          notStarted,
-        ]
+      description: >
+        Quantity-weighted counts of assemblies per stage of the company's
+        stage-library pipeline (in pipeline order). Held assemblies count only
+        under onHold; assemblies with a null or unknown stage count under
+        noStage (never silently excluded).
+      required: [stages, onHold, noStage]
       properties:
-        sentToVendor:
-          type: integer
-        atVendor:
-          type: integer
-        readyForPickup:
-          type: integer
-        partsProcessing:
-          type: integer
-        cut:
-          type: integer
-        fit:
-          type: integer
-        welded:
-          type: integer
-        inspected:
-          type: integer
-        shipped:
-          type: integer
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/StageCountEntry"
         onHold:
           type: integer
-        notStarted:
+        noStage:
           type: integer
 
     Customer:
@@ -6834,6 +7174,545 @@ components:
           description: Value of on-hand (non-consumed) inventory at month end, from movement history
         availablePieces:
           type: integer
+
+    LaborDetailEntry:
+      type: object
+      required: [id, date, employeeId, employeeName, jobId, jobNumber, jobName, clockIn, clockOut, hours]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        stageName:
+          type: [string, "null"]
+        clockIn:
+          type: string
+        clockOut:
+          type: string
+        hours:
+          type: number
+
+    LaborDetailReport:
+      type: object
+      required: [entries, employeeTotals, jobTotals, totalHours]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LaborDetailEntry"
+        employeeTotals:
+          type: array
+          items:
+            type: object
+            required: [employeeId, employeeName, hours]
+            properties:
+              employeeId:
+                type: integer
+              employeeName:
+                type: string
+              hours:
+                type: number
+        jobTotals:
+          type: array
+          items:
+            type: object
+            required: [jobId, jobNumber, jobName, hours]
+            properties:
+              jobId:
+                type: integer
+              jobNumber:
+                type: string
+              jobName:
+                type: string
+              hours:
+                type: number
+        totalHours:
+          type: number
+
+    OutstandingPoRow:
+      type: object
+      required: [id, poNumber, status, jobId, jobNumber, jobName, lineCount, value, dueStatus]
+      properties:
+        id:
+          type: integer
+        poNumber:
+          type: string
+        status:
+          type: string
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        vendorName:
+          type: [string, "null"]
+        lineCount:
+          type: integer
+        value:
+          type: number
+        earliestPromiseDate:
+          type: [string, "null"]
+        dueStatus:
+          type: string
+          enum: [overdue, due_soon, ok, no_date]
+
+    OutstandingPosReport:
+      type: object
+      required: [pos, totalValue, overdueCount]
+      properties:
+        pos:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutstandingPoRow"
+        totalValue:
+          type: number
+        overdueCount:
+          type: integer
+
+    EstimateVsActualRow:
+      type: object
+      required: [jobId, jobNumber, jobName, jobStatus, bidNumber, estimatedHours, actualHours, hoursVariance, estimatedTotalCost, actualCost, costVariance, actualLaborCost, materialCost]
+      properties:
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        jobStatus:
+          type: string
+        bidNumber:
+          type: string
+        estimatedHours:
+          type: number
+        actualHours:
+          type: number
+        hoursVariance:
+          type: number
+        estimatedLaborCost:
+          type: number
+        estimatedMaterialCost:
+          type: number
+        estimatedTotalCost:
+          type: number
+        estimateAmount:
+          type: [number, "null"]
+        actualCost:
+          type: number
+        costVariance:
+          type: number
+        contractVariance:
+          type: [number, "null"]
+        actualLaborCost:
+          type: number
+        materialCost:
+          type: number
+
+    JobMarginRow:
+      type: object
+      required: [jobId, jobNumber, jobName, jobStatus, customer, contractValue, actualLaborCost, materialCost, actualCost, margin]
+      properties:
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        jobStatus:
+          type: string
+        customer:
+          type: string
+        contractValue:
+          type: number
+        actualLaborCost:
+          type: number
+        materialCost:
+          type: number
+        actualCost:
+          type: number
+        margin:
+          type: number
+        marginPercent:
+          type: [number, "null"]
+        estimatedMarginPercent:
+          type: [number, "null"]
+
+    BidWinLossMonth:
+      type: object
+      required: [month, wonCount, wonAmount, lostCount, lostAmount, openCount, openAmount]
+      properties:
+        month:
+          type: string
+        wonCount:
+          type: integer
+        wonAmount:
+          type: number
+        lostCount:
+          type: integer
+        lostAmount:
+          type: number
+        openCount:
+          type: integer
+        openAmount:
+          type: number
+
+    BidWinLossReport:
+      type: object
+      required: [months, totals]
+      properties:
+        months:
+          type: array
+          items:
+            $ref: "#/components/schemas/BidWinLossMonth"
+        totals:
+          type: object
+          required: [wonCount, wonAmount, lostCount, lostAmount, openCount, openAmount]
+          properties:
+            wonCount:
+              type: integer
+            wonAmount:
+              type: number
+            lostCount:
+              type: integer
+            lostAmount:
+              type: number
+            openCount:
+              type: integer
+            openAmount:
+              type: number
+            winRatePercent:
+              type: [number, "null"]
+
+    BacklogJobRow:
+      type: object
+      required: [jobId, jobNumber, jobName, customer, status, hasDepartedShipments]
+      properties:
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        customer:
+          type: string
+        status:
+          type: string
+        dueDate:
+          type: [string, "null"]
+        bidNumber:
+          type: [string, "null"]
+        contractValue:
+          type: [number, "null"]
+        hasDepartedShipments:
+          type: boolean
+
+    BacklogReport:
+      type: object
+      required: [jobs, totalContractValue, jobCount, unvaluedJobCount]
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/BacklogJobRow"
+        totalContractValue:
+          type: number
+        jobCount:
+          type: integer
+        unvaluedJobCount:
+          type: integer
+
+    EstimateRecapReport:
+      type: object
+      required: [estimateId, bidNumber, name, customer, status, materialCategories, materialTotal, laborLines, laborTotal, subtotal, marginPercent, marginAmount, total]
+      properties:
+        estimateId:
+          type: integer
+        bidNumber:
+          type: string
+        name:
+          type: string
+        customer:
+          type: string
+        status:
+          type: string
+        materialCategories:
+          type: array
+          items:
+            type: object
+            required: [category, partCount, pieceCount, cost]
+            properties:
+              category:
+                type: string
+              partCount:
+                type: integer
+              pieceCount:
+                type: integer
+              cost:
+                type: number
+        materialTotal:
+          type: number
+        laborLines:
+          type: array
+          items:
+            type: object
+            required: [trade, hours, hourlyRate, cost]
+            properties:
+              trade:
+                type: string
+              hours:
+                type: number
+              hourlyRate:
+                type: number
+              cost:
+                type: number
+        laborTotal:
+          type: number
+        subtotal:
+          type: number
+        marginPercent:
+          type: number
+        marginAmount:
+          type: number
+        total:
+          type: number
+        quotedAmount:
+          type: [number, "null"]
+
+    JobCostingRow:
+      type: object
+      required: [jobId, jobNumber, jobName, customer, status, laborHours, laborCost, materialConsumedCost, poValue, totalCost]
+      properties:
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        customer:
+          type: string
+        status:
+          type: string
+        contractValue:
+          type: [number, "null"]
+        laborHours:
+          type: number
+        laborCost:
+          type: number
+        materialConsumedCost:
+          type: number
+        poValue:
+          type: number
+        totalCost:
+          type: number
+        wip:
+          type: [number, "null"]
+
+    JobCostingReport:
+      type: object
+      required: [jobs, totals]
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobCostingRow"
+        totals:
+          type: object
+          required: [laborCost, materialConsumedCost, poValue, totalCost]
+          properties:
+            laborCost:
+              type: number
+            materialConsumedCost:
+              type: number
+            poValue:
+              type: number
+            totalCost:
+              type: number
+
+    MaterialYieldRow:
+      type: object
+      required: [jobId, jobNumber, jobName, profileType, profileSize, grade, barCount, stockLengthIn, usedLengthIn, wasteIn, scrapPercent, yieldPercent]
+      properties:
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        profileType:
+          type: string
+        profileSize:
+          type: string
+        grade:
+          type: string
+        barCount:
+          type: integer
+        stockLengthIn:
+          type: number
+        usedLengthIn:
+          type: number
+        wasteIn:
+          type: number
+        scrapPercent:
+          type: number
+        yieldPercent:
+          type: number
+
+    MaterialYieldReport:
+      type: object
+      required: [rows, totals]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaterialYieldRow"
+        totals:
+          type: object
+          required: [stockLengthIn, wasteIn, scrapPercent, yieldPercent]
+          properties:
+            stockLengthIn:
+              type: number
+            wasteIn:
+              type: number
+            scrapPercent:
+              type: number
+            yieldPercent:
+              type: number
+
+    CutListPlan:
+      type: object
+      required: [planId, jobId, jobNumber, jobName, bars]
+      properties:
+        planId:
+          type: integer
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        acceptedAt:
+          type: [string, "null"]
+        bars:
+          type: array
+          items:
+            type: object
+            required: [barNumber, profileType, profileSize, grade, source, stockLengthIn, wasteIn, cuts]
+            properties:
+              barNumber:
+                type: integer
+              profileType:
+                type: string
+              profileSize:
+                type: string
+              grade:
+                type: string
+              source:
+                type: string
+              vendorName:
+                type: [string, "null"]
+              stockLengthIn:
+                type: number
+              wasteIn:
+                type: number
+              cuts:
+                type: array
+                items:
+                  type: object
+                  required: [lengthIn, quantity]
+                  properties:
+                    label:
+                      type: [string, "null"]
+                    lengthIn:
+                      type: number
+                    quantity:
+                      type: integer
+
+    RfiTurnaroundRow:
+      type: object
+      required: [id, number, jobId, jobNumber, jobName, question, status, createdDate, overdue]
+      properties:
+        id:
+          type: integer
+        number:
+          type: string
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        question:
+          type: string
+        directedTo:
+          type: [string, "null"]
+        status:
+          type: string
+        createdDate:
+          type: string
+        dueDate:
+          type: [string, "null"]
+        responseDate:
+          type: [string, "null"]
+        turnaroundDays:
+          type: [integer, "null"]
+        daysOpen:
+          type: [integer, "null"]
+        overdue:
+          type: boolean
+
+    RfiTurnaroundReport:
+      type: object
+      required: [rfis, summary]
+      properties:
+        rfis:
+          type: array
+          items:
+            $ref: "#/components/schemas/RfiTurnaroundRow"
+        summary:
+          type: object
+          required: [openCount, overdueCount, answeredCount]
+          properties:
+            openCount:
+              type: integer
+            overdueCount:
+              type: integer
+            answeredCount:
+              type: integer
+            avgTurnaroundDays:
+              type: [number, "null"]
+
+    VendorPerformanceRow:
+      type: object
+      required: [vendorId, vendorName, vendorStatus, poCount, totalSpend, receivedPoCount]
+      properties:
+        vendorId:
+          type: integer
+        vendorName:
+          type: string
+        vendorStatus:
+          type: string
+        poCount:
+          type: integer
+        totalSpend:
+          type: number
+        receivedPoCount:
+          type: integer
+        onTimePercent:
+          type: [number, "null"]
+        avgDaysLate:
+          type: [number, "null"]
+
     EstimateBomPart:
       type: object
       required: [id, quantity, pricingStatus, isMisc]

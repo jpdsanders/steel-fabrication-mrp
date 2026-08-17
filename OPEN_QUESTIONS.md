@@ -47,3 +47,6 @@ These items are flagged per the rebuild brief — do **not** build the specific 
 **Status:** Open  
 **Question:** Is the 7-year retention period from Exclusive Metals' QMS a group-wide standard, or EM-specific? **Regardless of the answer**, soft-delete is used everywhere — hard deletion of jobs/estimates/documents is never done. Only the specific retention *period* encoding is blocked.  
 **Blocks:** Any retention-period enforcement logic or per-company variation.
+
+## Job-level stages vs. assembly pipeline (Stage Library rework)
+The Stage Library is now the single source of truth for the **assembly** production pipeline (per-company, ordered, with a Ready-to-Ship gate and a final shipped stage). Jobs still carry their own separate job-level `stages` list (used for job scheduling/labor), which is unrelated to the assembly pipeline. **For Jonah:** should job-level stages be reconciled with (or replaced by) the Stage Library pipeline, or do they serve a distinct scheduling purpose worth keeping? Leaving both in place until decided.

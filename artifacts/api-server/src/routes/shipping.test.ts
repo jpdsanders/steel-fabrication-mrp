@@ -16,6 +16,7 @@
  * Runs against the development database with an isolated throwaway company.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { seedDefaultStageLibrary } from "../services/production";
 import request from "supertest";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
@@ -27,6 +28,7 @@ import {
   customersTable,
   jobsTable,
   bomAssembliesTable,
+  stageLibraryTable,
 } from "@workspace/db";
 import app from "../app";
 
@@ -55,6 +57,7 @@ beforeAll(async () => {
     .returning();
   userId = user.id;
   await db.insert(userCompanyRolesTable).values({ userId, companyId, role: "admin" });
+  await seedDefaultStageLibrary(companyId);
   const [customer] = await db
     .insert(customersTable)
     .values({ companyId, name: `Ship Test Customer ${suffix}` })
@@ -92,6 +95,7 @@ afterAll(async () => {
   await db.delete(userCompanyRolesTable).where(eq(userCompanyRolesTable.userId, userId));
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   await db.delete(customersTable).where(eq(customersTable.companyId, companyId));
+  await db.delete(stageLibraryTable).where(eq(stageLibraryTable.companyId, companyId));
   await db.delete(companiesTable).where(eq(companiesTable.id, companyId));
 });
 
